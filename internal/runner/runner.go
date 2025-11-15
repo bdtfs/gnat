@@ -45,10 +45,7 @@ func (r *Runner) StartRun(ctx context.Context, setupID string) (*models.Run, err
 		return nil, fmt.Errorf("create run: %w", err)
 	}
 
-	// first, we need to create a context without cancel
 	runCtx := context.WithoutCancel(ctx)
-
-	// then we create a cancel function that will be cancellable after start
 	cancellableRunCtx, cancel := context.WithCancel(runCtx)
 
 	r.activeRunsMu.Lock()
@@ -83,29 +80,37 @@ func (r *Runner) executeRun(ctx context.Context, run *models.Run, setup *models.
 	run.EndedAt = time.Now()
 
 	if err != nil {
-		run.Status = models.RunStatusFailed
-		run.Error = err.Error()
-		r.logger.Error("run failed", "run_id", run.ID, "error", err)
-	} else if errors.Is(ctx.Err(), context.Canceled) {
-		run.Status = models.RunStatusCancelled
-		r.logger.Info("run cancelled", "run_id", run.ID)
-	} else {
-		run.Status = models.RunStatusCompleted
-		run.Stats = &models.RunStats{
-			Total:       attackStats.Total(),
-			Success:     attackStats.Success(),
-			Failed:      attackStats.Failed(),
-			AvgLatency:  attackStats.AvgLatency(),
-			SuccessRate: r.calculateSuccessRate(attackStats),
+		switch {
+		case errors.Is(ctx.Err(), context.Canceled):
+			run.Status = models.RunStatusCancelled
+			r.logger.Info("run cancelled", "run_id", run.ID)
+		default:
+			run.Status = models.RunStatusFailed
+			run.Error = err.Error()
+			r.logger.Error("run failed", "run_id", run.ID, "error", err)
 		}
-		r.logger.Info("run completed",
-			"run_id", run.ID,
-			"total", run.Stats.Total,
-			"success", run.Stats.Success,
-			"failed", run.Stats.Failed,
-			"avg_latency", run.Stats.AvgLatency,
-			"success_rate", run.Stats.SuccessRate)
 	}
+
+	if attackStats == nil {
+		panic(fmt.Errorf("no error, but stats is nil"))
+	}
+
+	run.Status = models.RunStatusCompleted
+	run.Stats = &models.RunStats{
+		Total:       attackStats.Total(),
+		Success:     attackStats.Success(),
+		Failed:      attackStats.Failed(),
+		AvgLatency:  attackStats.AvgLatency(),
+		SuccessRate: r.calculateSuccessRate(attackStats),
+	}
+
+	r.logger.Info("run completed",
+		"run_id", run.ID,
+		"total", run.Stats.Total,
+		"success", run.Stats.Success,
+		"failed", run.Stats.Failed,
+		"avg_latency", run.Stats.AvgLatency,
+		"success_rate", run.Stats.SuccessRate)
 
 	if err = r.repo.UpdateRun(run); err != nil {
 		r.logger.Error("failed to update run", "run_id", run.ID, "error", err)

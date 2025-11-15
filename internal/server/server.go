@@ -3,7 +3,8 @@ package server
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -14,13 +15,15 @@ import (
 type Server struct {
 	addr    string
 	service *service.Service
+	logger  *slog.Logger
 	server  *http.Server
 }
 
-func New(addr string, service *service.Service) *Server {
+func New(addr string, service *service.Service, logger *slog.Logger) *Server {
 	s := &Server{
 		addr:    addr,
 		service: service,
+		logger:  logger,
 	}
 
 	mux := http.NewServeMux()
@@ -36,9 +39,11 @@ func New(addr string, service *service.Service) *Server {
 	mux.HandleFunc("POST /api/runs/{id}/cancel", s.handleCancelRun)
 	mux.HandleFunc("GET /api/runs/{id}/stats", s.handleGetRunStats)
 
+	handler := panicRecovery(logging(logger)(mux))
+
 	s.server = &http.Server{
 		Addr:         addr,
-		Handler:      mux,
+		Handler:      handler,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -53,11 +58,13 @@ func (s *Server) Start(ctx context.Context) error {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := s.server.Shutdown(shutdownCtx); err != nil {
-			fmt.Printf("server shutdown error: %v\n", err)
+			s.logger.Error("server shutdown error", "error", err)
 		}
 	}()
 
-	if err := s.server.ListenAndServe(); err != http.ErrServerClosed {
+	s.logger.Info("starting server", "addr", s.addr)
+
+	if err := s.server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
 
@@ -96,7 +103,7 @@ func (s *Server) handleCreateSetup(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusCreated, setup)
 }
 
-func (s *Server) handleListSetups(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleListSetups(w http.ResponseWriter, _ *http.Request) {
 	setups := s.service.ListSetups()
 	respondJSON(w, http.StatusOK, setups)
 }
@@ -194,7 +201,9 @@ func (s *Server) handleGetRunStats(w http.ResponseWriter, r *http.Request) {
 func respondJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 func respondError(w http.ResponseWriter, status int, message string) {

@@ -55,6 +55,7 @@ func (r *Runner) run(
 	for {
 		select {
 		case <-ctx.Done():
+			r.logger.Warn("context canceled")
 			wg.Wait()
 			close(results)
 			return statistics, nil
