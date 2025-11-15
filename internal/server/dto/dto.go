@@ -19,13 +19,14 @@ type Setup struct {
 }
 
 type Run struct {
-	ID        string    `json:"id"`
-	SetupID   string    `json:"setup_id"`
-	Status    string    `json:"status"`
-	StartedAt time.Time `json:"started_at"`
-	EndedAt   time.Time `json:"ended_at,omitempty"`
-	Error     string    `json:"error,omitempty"`
-	Stats     *Stats    `json:"stats"`
+	ID        string     `json:"id"`
+	SetupID   string     `json:"setup_id"`
+	Status    string     `json:"status"`
+	StartedAt time.Time  `json:"started_at"`
+	Elapsed   string     `json:"elapsed"`
+	EndedAt   *time.Time `json:"ended_at,omitempty"`
+	Error     string     `json:"error,omitempty"`
+	Stats     *Stats     `json:"stats"`
 }
 
 type Stats struct {

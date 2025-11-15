@@ -23,36 +23,40 @@ func (r *Runner) runLoop(
 		return fmt.Errorf("rps must be greater than 0")
 	}
 
-	client := httpclient.New()
+	total := setup.RPS * int(setup.Duration/time.Second)
 
+	client := httpclient.New()
 	ch := r.collector.StartRunStatsProcessing(run)
 	defer close(ch)
 
-	ticker := time.NewTicker(time.Second / time.Duration(setup.RPS))
-	defer ticker.Stop()
+	interval := time.Second / time.Duration(setup.RPS)
+	start := time.Now()
 
-	stop := time.Now().Add(setup.Duration)
 	var wg sync.WaitGroup
-
 	loopCtx := context.WithoutCancel(ctx)
 
-	for {
+	for i := 0; i < total; i++ {
 		select {
 		case <-ctx.Done():
 			wg.Wait()
 			return nil
-
-		case <-ticker.C:
-			if time.Now().After(stop) {
-				wg.Wait()
-				return nil
-			}
-
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				ch <- send(loopCtx, client, setup.Method, setup.URL, setup.Body)
-			}()
+		default:
 		}
+
+		now := time.Now()
+		next := start.Add(time.Duration(i) * interval)
+
+		if now.Before(next) {
+			time.Sleep(next.Sub(now))
+		}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ch <- send(loopCtx, client, setup.Method, setup.URL, setup.Body)
+		}()
 	}
+
+	wg.Wait()
+	return nil
 }

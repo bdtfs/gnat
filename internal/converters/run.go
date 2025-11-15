@@ -1,10 +1,11 @@
 package converters
 
 import (
-	"github.com/bdtfs/gnat/internal/models"
-	"github.com/bdtfs/gnat/internal/server/dto"
 	"sort"
 	"time"
+
+	"github.com/bdtfs/gnat/internal/models"
+	"github.com/bdtfs/gnat/internal/server/dto"
 )
 
 func RunToDTO(m *models.Run) *dto.Run {
@@ -13,15 +14,22 @@ func RunToDTO(m *models.Run) *dto.Run {
 		stats = StatsToDTO(m.Stats, m.StartedAt, m.EndedAt)
 	}
 
-	return &dto.Run{
+	out := &dto.Run{
 		ID:        m.ID,
 		SetupID:   m.SetupID,
 		Status:    string(m.Status),
 		StartedAt: m.StartedAt,
-		EndedAt:   m.EndedAt,
+		Elapsed:   time.Since(m.StartedAt).String(),
 		Error:     m.Error,
 		Stats:     stats,
 	}
+
+	if !m.EndedAt.IsZero() {
+		out.EndedAt = &m.EndedAt
+		out.Elapsed = m.EndedAt.Sub(m.StartedAt).String()
+	}
+
+	return out
 }
 
 func StatsToDTO(m *models.Stats, startedAt, endedAt time.Time) *dto.Stats {
