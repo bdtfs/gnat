@@ -55,12 +55,10 @@ func (r *Runner) run(
 	for {
 		select {
 		case <-ctx.Done():
-			r.logger.Warn("context canceled")
 			wg.Wait()
 			close(results)
 			return statistics, nil
 		case <-ticker.C:
-			r.logger.Debug("do single request", "url", url)
 			wg.Add(1)
 			go func() {
 				defer wg.Done()

@@ -45,20 +45,26 @@ func (r *Runner) StartRun(ctx context.Context, setupID string) (*models.Run, err
 		return nil, fmt.Errorf("create run: %w", err)
 	}
 
-	runCtx, cancel := context.WithCancel(ctx)
+	// first, we need to create a context without cancel
+	runCtx := context.WithoutCancel(ctx)
+
+	// then we create a cancel function that will be cancellable after start
+	cancellableRunCtx, cancel := context.WithCancel(runCtx)
 
 	r.activeRunsMu.Lock()
 	r.activeRuns[run.ID] = cancel
 	r.activeRunsMu.Unlock()
 
-	r.logger.Info("run execution starting",
+	r.logger.Info(
+		"run execution starting",
 		"run_id", run.ID,
 		"setup_id", setupID,
 		"url", setup.URL,
 		"rps", setup.RPS,
-		"duration", setup.Duration)
+		"duration", setup.Duration,
+	)
 
-	go r.executeRun(runCtx, run, setup)
+	go r.executeRun(cancellableRunCtx, run, setup)
 
 	return run, nil
 }
@@ -72,8 +78,7 @@ func (r *Runner) executeRun(ctx context.Context, run *models.Run, setup *models.
 
 	r.logger.Info("executing attack", "run_id", run.ID, "url", setup.URL, "rps", setup.RPS)
 
-	attackCtx := context.Background()
-	attackStats, err := r.run(attackCtx, nil, setup.Method, setup.URL, setup.RPS, setup.Duration, setup.Body)
+	attackStats, err := r.run(ctx, nil, setup.Method, setup.URL, setup.RPS, setup.Duration, setup.Body)
 
 	run.EndedAt = time.Now()
 
