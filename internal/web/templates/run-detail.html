@@ -1,0 +1,105 @@
+<div class="modal-content">
+    <div class="modal-header">
+        <h2>Run Details</h2>
+        <button class="modal-close" onclick="hideModal(event)">×</button>
+    </div>
+
+    <div class="modal-body">
+        <div class="detail-section">
+            <h3>Status</h3>
+            <span class="status status-{{.status}}">{{.status}}</span>
+        </div>
+
+        <div class="detail-section">
+            <h3>Timing</h3>
+            <p><strong>Started:</strong> {{.started_at}}</p>
+            {{if .elapsed}}<p><strong>Elapsed:</strong> {{.elapsed}}</p>{{end}}
+            {{if .ended_at}}<p><strong>Ended:</strong> {{.ended_at}}</p>{{end}}
+        </div>
+
+        {{if .stats}}
+        <div class="detail-section">
+            <h3>Statistics</h3>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Total Requests</div>
+                    <div class="stat-value-lg">{{.stats.total}}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Success Rate</div>
+                    <div class="stat-value-lg">{{printf "%.2f" .stats.success_rate}}%</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Current RPS</div>
+                    <div class="stat-value-lg">{{printf "%.2f" .stats.rps}}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Bytes Read</div>
+                    <div class="stat-value-lg">{{.stats.bytes_read}}</div>
+                </div>
+            </div>
+
+            <h4>Latency Distribution</h4>
+            <div class="latency-table">
+                <div class="latency-row">
+                    <span>Min:</span>
+                    <span>{{printf "%.2f" .stats.min_latency_ms}}ms</span>
+                </div>
+                <div class="latency-row">
+                    <span>Avg:</span>
+                    <span>{{printf "%.2f" .stats.avg_latency_ms}}ms</span>
+                </div>
+                <div class="latency-row">
+                    <span>Max:</span>
+                    <span>{{printf "%.2f" .stats.max_latency_ms}}ms</span>
+                </div>
+                <div class="latency-row">
+                    <span>P50:</span>
+                    <span>{{printf "%.2f" .stats.p50_latency_ms}}ms</span>
+                </div>
+                <div class="latency-row">
+                    <span>P90:</span>
+                    <span>{{printf "%.2f" .stats.p90_latency_ms}}ms</span>
+                </div>
+                <div class="latency-row">
+                    <span>P95:</span>
+                    <span>{{printf "%.2f" .stats.p95_latency_ms}}ms</span>
+                </div>
+                <div class="latency-row">
+                    <span>P99:</span>
+                    <span>{{printf "%.2f" .stats.p99_latency_ms}}ms</span>
+                </div>
+            </div>
+
+            {{if .stats.status_codes}}
+            <h4>Status Codes</h4>
+            <div class="status-codes">
+                {{range $code, $count := .stats.status_codes}}
+                <div class="status-code-item">
+                    <span class="badge">{{$code}}</span>
+                    <span>{{$count}}</span>
+                </div>
+                {{end}}
+            </div>
+            {{end}}
+
+            {{if .stats.errors}}
+            <h4>Errors</h4>
+            <div class="errors-list">
+                {{range .stats.errors}}
+                <div class="error-item">{{.}}</div>
+                {{end}}
+            </div>
+            {{end}}
+        </div>
+        {{end}}
+
+        {{if .error}}
+        <div class="detail-section">
+            <h3>Error</h3>
+            <div class="error-box">{{.error}}</div>
+        </div>
+        {{end}}
+    </div>
+</div>

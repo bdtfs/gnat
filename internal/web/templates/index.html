@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>gnat - Load Testing</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>🦟 gnat</h1>
+        <p>Fast, scenario-oriented load testing</p>
+    </header>
+
+    <div class="grid">
+        <section class="card">
+            <div class="card-header">
+                <h2>Test Setups</h2>
+                <button onclick="toggleForm()" class="btn btn-primary">+ New Setup</button>
+            </div>
+
+            <div id="setup-form" class="form-container" style="display: none;">
+                <form hx-post="/setups" hx-target="#setups-list" hx-swap="innerHTML">
+                    <div class="form-group">
+                        <label>Name</label>
+                        <input type="text" name="name" required placeholder="My Load Test">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Description</label>
+                        <input type="text" name="description" placeholder="Test description">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Method</label>
+                            <select name="method">
+                                <option value="GET">GET</option>
+                                <option value="POST">POST</option>
+                                <option value="PUT">PUT</option>
+                                <option value="DELETE">DELETE</option>
+                                <option value="PATCH">PATCH</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>URL</label>
+                            <input type="url" name="url" required placeholder="http://localhost:8080/api">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>RPS</label>
+                            <input type="number" name="rps" value="100" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Duration</label>
+                            <input type="text" name="duration" value="30s" required placeholder="10s, 2m, 1h">
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Create Setup</button>
+                        <button type="button" onclick="toggleForm()" class="btn">Cancel</button>
+                    </div>
+                </form>
+            </div>
+
+            <div id="setups-list"
+                 hx-get="/setups"
+                 hx-trigger="load, setupCreated from:body, setupDeleted from:body"
+                 hx-swap="innerHTML">
+                <div class="loading">Loading setups...</div>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="card-header">
+                <h2>Active Runs</h2>
+            </div>
+
+            <div id="runs-list"
+                 hx-get="/runs"
+                 hx-trigger="load, every 2s, runCreated from:body, runCancelled from:body"
+                 hx-swap="innerHTML">
+                <div class="loading">Loading runs...</div>
+            </div>
+        </section>
+    </div>
+</div>
+
+<script>
+    function toggleForm() {
+        const form = document.getElementById('setup-form');
+        form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    }
+
+    document.body.addEventListener('setupCreated', () => {
+        document.getElementById('setup-form').style.display = 'none';
+        document.querySelector('form').reset();
+    });
+</script>
+</body>
+</html>

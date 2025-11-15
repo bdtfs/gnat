@@ -1,0 +1,80 @@
+{{if .}}
+<div class="list">
+    {{range .}}
+    <div class="list-item {{if eq .status "running"}}pulsing{{end}}">
+    <div class="list-item-main">
+        <div class="list-item-title">
+            <span class="status status-{{.status}}">{{.status}}</span>
+            Run {{.id}}
+        </div>
+        <div class="list-item-meta">
+            {{if .started_at}}<span>Started: {{.started_at}}</span>{{end}}
+            {{if .elapsed}}<span>Elapsed: {{.elapsed}}</span>{{end}}
+        </div>
+        {{if .stats}}
+        <div class="stats-preview">
+            <div class="stat">
+                <div class="stat-label">Requests</div>
+                <div class="stat-value">{{.stats.total}}</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">Success</div>
+                <div class="stat-value">{{.stats.success}}</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">Failed</div>
+                <div class="stat-value">{{.stats.failed}}</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">Avg Latency</div>
+                <div class="stat-value">{{printf "%.2f" .stats.avg_latency_ms}}ms</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">P95</div>
+                <div class="stat-value">{{printf "%.2f" .stats.p95_latency_ms}}ms</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">RPS</div>
+                <div class="stat-value">{{printf "%.2f" .stats.rps}}</div>
+            </div>
+        </div>
+        {{end}}
+    </div>
+    <div class="list-item-actions">
+        <button class="btn btn-sm"
+                hx-get="/runs/{{.id}}"
+                hx-target="#run-detail-modal"
+                onclick="showModal()">
+            Details
+        </button>
+        {{if eq .status "running"}}
+        <button class="btn btn-sm btn-warning"
+                hx-post="/runs/{{.id}}/cancel"
+                hx-confirm="Cancel this run?">
+            ⏸ Cancel
+        </button>
+        {{end}}
+    </div>
+</div>
+{{end}}
+</div>
+{{else}}
+<div class="empty-state">
+    <p>No runs yet. Start a test setup to begin.</p>
+</div>
+{{end}}
+
+<div id="run-detail-modal" class="modal" onclick="hideModal(event)">
+</div>
+
+<script>
+    function showModal() {
+        document.getElementById('run-detail-modal').classList.add('show');
+    }
+
+    function hideModal(e) {
+        if (e.target.className === 'modal show' || e.target.className === 'modal-close') {
+            document.getElementById('run-detail-modal').classList.remove('show');
+        }
+    }
+</script>
