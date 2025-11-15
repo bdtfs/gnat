@@ -13,6 +13,7 @@ import (
 	"github.com/bdtfs/gnat/internal/runner"
 	"github.com/bdtfs/gnat/internal/server"
 	"github.com/bdtfs/gnat/internal/service"
+	"github.com/bdtfs/gnat/internal/stats"
 	repository "github.com/bdtfs/gnat/internal/storage/memory"
 	httpclient "github.com/bdtfs/gnat/pkg/clients/http"
 )
@@ -26,6 +27,9 @@ type Container struct {
 
 	repo     *repository.Repository
 	repoOnce sync.Once
+
+	collector     *stats.Collector
+	collectorOnce sync.Once
 
 	runner     *runner.Runner
 	runnerOnce sync.Once
@@ -83,9 +87,16 @@ func (c *Container) GetRepository() *repository.Repository {
 	return c.repo
 }
 
+func (c *Container) GetCollector() *stats.Collector {
+	c.collectorOnce.Do(func() {
+		c.collector = stats.NewCollector()
+	})
+	return c.collector
+}
+
 func (c *Container) GetRunner() *runner.Runner {
 	c.runnerOnce.Do(func() {
-		c.runner = runner.New(c.GetRepository(), c.GetLogger())
+		c.runner = runner.New(c.GetRepository(), c.GetLogger(), c.GetCollector())
 	})
 	return c.runner
 }
@@ -111,4 +122,10 @@ func (c *Container) GetConfig() config.Config {
 
 func (c *Container) GetContext() context.Context {
 	return c.ctx
+}
+
+func (c *Container) Shutdown() {
+	if c.runner != nil {
+		c.runner.Shutdown()
+	}
 }

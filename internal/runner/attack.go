@@ -15,18 +15,19 @@ import (
 
 func (r *Runner) run(
 	ctx context.Context,
+	runID string,
 	cfg *httpclient.Config,
 	method, url string,
 	rps int,
 	d time.Duration,
 	body []byte,
-) (*stats.Stats, error) {
+) error {
 	if url == "" {
-		return nil, fmt.Errorf("url cannot be empty")
+		return fmt.Errorf("url cannot be empty")
 	}
 
 	if rps <= 0 {
-		return nil, fmt.Errorf("rps must be greater than 0")
+		return fmt.Errorf("rps must be greater than 0")
 	}
 
 	var client *http.Client
@@ -36,6 +37,9 @@ func (r *Runner) run(
 		client = httpclient.New()
 	}
 
+	resultChan := r.collector.StartRun(runID)
+	defer r.collector.StopRun(runID)
+
 	ticker := time.NewTicker(time.Second / time.Duration(rps))
 	defer ticker.Stop()
 
@@ -43,28 +47,21 @@ func (r *Runner) run(
 	defer cancel()
 
 	var wg sync.WaitGroup
-	statistics := stats.New()
-	results := make(chan *stats.Result, rps*2)
-
-	go func() {
-		for res := range results {
-			statistics.Record(res)
-		}
-	}()
 
 	for {
 		select {
 		case <-ctx.Done():
-			r.logger.Warn("context canceled")
 			wg.Wait()
-			close(results)
-			return statistics, nil
+			return nil
 		case <-ticker.C:
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 				result := send(ctx, client, method, url, body)
-				results <- result
+				select {
+				case resultChan <- result:
+				case <-ctx.Done():
+				}
 			}()
 		}
 	}

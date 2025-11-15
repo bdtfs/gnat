@@ -50,14 +50,21 @@ type Run struct {
 }
 
 type RunStats struct {
-	Total       uint64        `json:"total"`
-	Success     uint64        `json:"success"`
-	Failed      uint64        `json:"failed"`
-	AvgLatency  time.Duration `json:"avg_latency"`
-	MinLatency  time.Duration `json:"min_latency"`
-	MaxLatency  time.Duration `json:"max_latency"`
-	TotalBytes  int64         `json:"total_bytes"`
-	SuccessRate float64       `json:"success_rate"`
+	Total       uint64         `json:"total"`
+	Success     uint64         `json:"success"`
+	Failed      uint64         `json:"failed"`
+	AvgLatency  time.Duration  `json:"avg_latency"`
+	MinLatency  time.Duration  `json:"min_latency"`
+	MaxLatency  time.Duration  `json:"max_latency"`
+	P50Latency  time.Duration  `json:"p50_latency"`
+	P90Latency  time.Duration  `json:"p90_latency"`
+	P95Latency  time.Duration  `json:"p95_latency"`
+	P99Latency  time.Duration  `json:"p99_latency"`
+	SuccessRate float64        `json:"success_rate"`
+	RPS         float64        `json:"rps"`
+	BytesRead   uint64         `json:"bytes_read"`
+	StatusCodes map[int]uint64 `json:"status_codes"`
+	Errors      []string       `json:"errors,omitempty"`
 }
 
 func NewSetup(name, description, method, url string, body []byte, headers map[string]string, rps int, duration time.Duration) *Setup {

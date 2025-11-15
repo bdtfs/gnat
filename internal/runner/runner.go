@@ -16,14 +16,16 @@ import (
 type Runner struct {
 	repo         *repository.Repository
 	logger       *slog.Logger
+	collector    *stats.Collector
 	activeRuns   map[string]context.CancelFunc
 	activeRunsMu sync.RWMutex
 }
 
-func New(repo *repository.Repository, logger *slog.Logger) *Runner {
+func New(repo *repository.Repository, logger *slog.Logger, collector *stats.Collector) *Runner {
 	return &Runner{
 		repo:       repo,
 		logger:     logger,
+		collector:  collector,
 		activeRuns: make(map[string]context.CancelFunc),
 	}
 }
@@ -75,7 +77,9 @@ func (r *Runner) executeRun(ctx context.Context, run *models.Run, setup *models.
 	r.logger.Info("executing attack", "run_id", run.ID, "url", setup.URL, "rps", setup.RPS)
 	run.Status = models.RunStatusRunning
 
-	attackStats, err := r.run(ctx, nil, setup.Method, setup.URL, setup.RPS, setup.Duration, setup.Body)
+	startTime := time.Now()
+	err := r.run(ctx, run.ID, nil, setup.Method, setup.URL, setup.RPS, setup.Duration, setup.Body)
+	duration := time.Since(startTime)
 
 	run.EndedAt = time.Now()
 
@@ -89,28 +93,41 @@ func (r *Runner) executeRun(ctx context.Context, run *models.Run, setup *models.
 			run.Error = err.Error()
 			r.logger.Error("run failed", "run_id", run.ID, "error", err)
 		}
+	} else {
+		run.Status = models.RunStatusCompleted
 	}
 
-	if attackStats == nil {
-		panic(fmt.Errorf("no error, but stats is nil"))
-	}
+	attackStats := r.collector.GetStats(run.ID)
+	if attackStats != nil {
+		run.Stats = &models.RunStats{
+			Total:       attackStats.Total(),
+			Success:     attackStats.Success(),
+			Failed:      attackStats.Failed(),
+			AvgLatency:  attackStats.AvgLatency(),
+			MinLatency:  attackStats.MinLatency(),
+			MaxLatency:  attackStats.MaxLatency(),
+			P50Latency:  attackStats.Percentile(0.50),
+			P90Latency:  attackStats.Percentile(0.90),
+			P95Latency:  attackStats.Percentile(0.95),
+			P99Latency:  attackStats.Percentile(0.99),
+			SuccessRate: r.calculateSuccessRate(attackStats),
+			RPS:         attackStats.RPS(duration),
+			BytesRead:   attackStats.BytesRead(),
+			StatusCodes: attackStats.StatusCodeDistribution(),
+			Errors:      attackStats.Errors(),
+		}
 
-	run.Status = models.RunStatusCompleted
-	run.Stats = &models.RunStats{
-		Total:       attackStats.Total(),
-		Success:     attackStats.Success(),
-		Failed:      attackStats.Failed(),
-		AvgLatency:  attackStats.AvgLatency(),
-		SuccessRate: r.calculateSuccessRate(attackStats),
+		r.logger.Info("run completed",
+			"run_id", run.ID,
+			"total", run.Stats.Total,
+			"success", run.Stats.Success,
+			"failed", run.Stats.Failed,
+			"avg_latency", run.Stats.AvgLatency,
+			"p95_latency", run.Stats.P95Latency,
+			"p99_latency", run.Stats.P99Latency,
+			"success_rate", run.Stats.SuccessRate,
+			"rps", run.Stats.RPS)
 	}
-
-	r.logger.Info("run completed",
-		"run_id", run.ID,
-		"total", run.Stats.Total,
-		"success", run.Stats.Success,
-		"failed", run.Stats.Failed,
-		"avg_latency", run.Stats.AvgLatency,
-		"success_rate", run.Stats.SuccessRate)
 
 	if err = r.repo.UpdateRun(run); err != nil {
 		r.logger.Error("failed to update run", "run_id", run.ID, "error", err)
@@ -149,4 +166,12 @@ func (r *Runner) GetActiveRuns() []string {
 	}
 
 	return runIDs
+}
+
+func (r *Runner) GetLiveStats(runID string) *stats.Stats {
+	return r.collector.GetStats(runID)
+}
+
+func (r *Runner) Shutdown() {
+	r.collector.Shutdown()
 }
