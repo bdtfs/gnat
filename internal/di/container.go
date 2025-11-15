@@ -124,7 +124,4 @@ func (c *Container) GetContext() context.Context {
 }
 
 func (c *Container) Shutdown() {
-	if c.runner != nil {
-		c.runner.Shutdown()
-	}
 }

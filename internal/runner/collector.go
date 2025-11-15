@@ -1,83 +1,88 @@
 package runner
 
 import (
-	"context"
 	"sync"
+	"sync/atomic"
+
+	"github.com/bdtfs/gnat/internal/models"
 )
 
 type Collector struct {
-	runs   map[string]*Stats
-	mu     sync.RWMutex
-	buffer map[string]chan *Result
-	ctx    context.Context
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
+	mu   sync.RWMutex
+	runs map[string]*models.Stats
 }
 
 func NewCollector() *Collector {
-	ctx, cancel := context.WithCancel(context.Background())
 	return &Collector{
-		runs:   make(map[string]*Stats),
-		buffer: make(map[string]chan *Result),
-		ctx:    ctx,
-		cancel: cancel,
+		runs: make(map[string]*models.Stats),
 	}
 }
 
-func (c *Collector) StartRun(runID string) chan<- *Result {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
+func (c *Collector) StartRunStatsProcessing(run *models.Run) chan<- *Result {
 	stats := NewStats()
-	c.runs[runID] = stats
+	run.Stats = stats
 
-	resultChan := make(chan *Result, 1000)
-	c.buffer[runID] = resultChan
+	c.mu.Lock()
+	c.runs[run.ID] = stats
+	c.mu.Unlock()
 
-	c.wg.Add(1)
-	go c.worker(runID, stats, resultChan)
+	ch := make(chan *Result, 100)
 
-	return resultChan
-}
-
-func (c *Collector) worker(runID string, stats *Stats, results <-chan *Result) {
-	defer c.wg.Done()
-
-	for {
-		select {
-		case <-c.ctx.Done():
-			return
-		case result, ok := <-results:
-			if !ok {
-				return
-			}
-			stats.Record(result)
+	go func() {
+		for r := range ch {
+			c.ProcessOneResult(stats, r)
 		}
-	}
+	}()
+
+	return ch
 }
 
-func (c *Collector) GetStats(runID string) *Stats {
+func (c *Collector) ProcessOneResult(s *models.Stats, r *Result) {
+	atomic.AddUint64(&s.TotalRequests, 1)
+
+	if r.Error != nil {
+		atomic.AddUint64(&s.FailedRequests, 1)
+		s.ErrorsMu.Lock()
+		s.Errors = append(s.Errors, r.Error.Error())
+		s.ErrorsMu.Unlock()
+		return
+	}
+
+	atomic.AddUint64(&s.TotalBytesRead, uint64(r.BytesRead))
+
+	s.StatusMu.Lock()
+	ptr, ok := s.StatusCodes[r.StatusCode]
+	if !ok {
+		var n uint64
+		ptr = &n
+		s.StatusCodes[r.StatusCode] = ptr
+	}
+	s.StatusMu.Unlock()
+	atomic.AddUint64(ptr, 1)
+
+	if r.StatusCode >= 200 && r.StatusCode < 400 {
+		atomic.AddUint64(&s.SuccessRequests, 1)
+	} else {
+		atomic.AddUint64(&s.FailedRequests, 1)
+	}
+
+	s.LatenciesMu.Lock()
+	s.Latencies = append(s.Latencies, r.Latency)
+	s.LatenciesMu.Unlock()
+
+	s.LatencyMu.Lock()
+	s.TotalLatency += r.Latency
+	s.LatencyMu.Unlock()
+}
+
+func (c *Collector) GetStats(runID string) *models.Stats {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.runs[runID]
 }
 
-func (c *Collector) StopRun(runID string) {
+func (c *Collector) DeleteRun(runID string) {
 	c.mu.Lock()
-	if ch, exists := c.buffer[runID]; exists {
-		close(ch)
-		delete(c.buffer, runID)
-	}
+	delete(c.runs, runID)
 	c.mu.Unlock()
-}
-
-func (c *Collector) Shutdown() {
-	c.cancel()
-	c.mu.Lock()
-	for _, ch := range c.buffer {
-		close(ch)
-	}
-	c.buffer = make(map[string]chan *Result)
-	c.mu.Unlock()
-	c.wg.Wait()
 }
