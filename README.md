@@ -49,9 +49,7 @@ APPLICATION_PORT=8778 go run ./cmd/gnat
 APPLICATION_PORT=8778 ./bin/gnat
 ```
 
-Important: The startup banner currently prints `:8080`, but the server actually binds to `:${APPLICATION_PORT}` (default `8778`).
-
-TODO: Align the banner with the configured port.
+On startup, the banner reflects the configured address and prints full endpoint URLs using `APPLICATION_PORT` (default `8778`).
 
 ## API
 
@@ -237,6 +235,4 @@ This project is licensed under the MIT License — see the `LICENSE` file for de
 
 - Web UI for real-time monitoring. (Not present in this repo.)
 - Persist setups and results (add storage backend).
-- Distributed workers and coordinator.
 - CLI UX for local runs and config generation.
-- Align startup banner with configured port and advertised endpoints.

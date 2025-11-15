@@ -34,7 +34,8 @@ func run() int {
 
 	c := di.New(ctx)
 
-	printWelcome(":8080")
+	addr := fmt.Sprintf(":%d", c.GetConfig().Application.Port)
+	printWelcome(addr)
 
 	errChan := make(chan error, 1)
 	go func() {
