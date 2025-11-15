@@ -39,7 +39,6 @@ func (r *Runner) StartRun(ctx context.Context, setupID string) (*models.Run, err
 	}
 
 	run := models.NewRun(setupID)
-	run.Status = models.RunStatusRunning
 
 	if err = r.repo.CreateRun(run); err != nil {
 		return nil, fmt.Errorf("create run: %w", err)
@@ -74,6 +73,7 @@ func (r *Runner) executeRun(ctx context.Context, run *models.Run, setup *models.
 	}()
 
 	r.logger.Info("executing attack", "run_id", run.ID, "url", setup.URL, "rps", setup.RPS)
+	run.Status = models.RunStatusRunning
 
 	attackStats, err := r.run(ctx, nil, setup.Method, setup.URL, setup.RPS, setup.Duration, setup.Body)
 

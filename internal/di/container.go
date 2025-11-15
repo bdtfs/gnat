@@ -3,8 +3,10 @@ package di
 import (
 	"context"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"sync"
 
 	"github.com/bdtfs/gnat/internal/config"
@@ -97,7 +99,8 @@ func (c *Container) GetService() *service.Service {
 
 func (c *Container) GetServer() *server.Server {
 	c.serverOnce.Do(func() {
-		c.server = server.New(":8080", c.GetService())
+		addr := net.JoinHostPort("", strconv.Itoa(c.GetConfig().Application.Port))
+		c.server = server.New(addr, c.GetService(), c.GetLogger())
 	})
 	return c.server
 }

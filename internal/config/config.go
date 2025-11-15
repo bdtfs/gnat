@@ -7,7 +7,12 @@ import (
 )
 
 type Config struct {
+	Application      *Application
 	HTTPClientConfig *HTTPClientConfig
+}
+
+type Application struct {
+	Port int
 }
 
 type HTTPClientConfig struct {
@@ -24,6 +29,9 @@ type HTTPClientConfig struct {
 
 func MustLoad() Config {
 	return Config{
+		Application: &Application{
+			Port: getEnv("APPLICATION_PORT", 8778),
+		},
 		HTTPClientConfig: &HTTPClientConfig{
 			MaxIdleConns:        getEnv("HTTP_MAX_IDLE_CONNS", 10000),
 			MaxIdleConnsPerHost: getEnv("HTTP_MAX_IDLE_CONNS_PER_HOST", 10000),
