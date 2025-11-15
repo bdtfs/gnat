@@ -3,11 +3,13 @@ package web
 import (
 	"embed"
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"io"
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 )
 
 //go:embed templates/* static/*
@@ -20,7 +22,13 @@ type Handler struct {
 }
 
 func NewHandler(apiBase string, logger *slog.Logger) *Handler {
-	tmpl := template.Must(template.ParseFS(content, "templates/*.html"))
+	funcMap := template.FuncMap{
+		"formatTime":     formatTime,
+		"formatDuration": formatDuration,
+		"formatFloat":    formatFloat,
+	}
+
+	tmpl := template.Must(template.New("").Funcs(funcMap).ParseFS(content, "templates/*.html"))
 	return &Handler{
 		apiBase: apiBase,
 		tmpl:    tmpl,
@@ -257,4 +265,44 @@ func parseIntOrDefault(s string, def int) int {
 		return def
 	}
 	return val
+}
+
+func formatTime(t string) string {
+	parsed, err := time.Parse(time.RFC3339Nano, t)
+	if err != nil {
+		return t
+	}
+	return parsed.Format("Jan 02, 15:04:05")
+}
+
+func formatDuration(d interface{}) string {
+	switch v := d.(type) {
+	case string:
+		dur, err := time.ParseDuration(v)
+		if err != nil {
+			return v
+		}
+		if dur < time.Second {
+			return fmt.Sprintf("%.0fms", dur.Seconds()*1000)
+		}
+		return dur.Round(time.Millisecond).String()
+	case float64:
+		dur := time.Duration(v)
+		if dur < time.Second {
+			return fmt.Sprintf("%.0fms", dur.Seconds()*1000)
+		}
+		return dur.Round(time.Millisecond).String()
+	default:
+		return fmt.Sprintf("%v", d)
+	}
+}
+
+func formatFloat(f float64) string {
+	if f < 1 {
+		return fmt.Sprintf("%.3f", f)
+	}
+	if f < 10 {
+		return fmt.Sprintf("%.2f", f)
+	}
+	return fmt.Sprintf("%.1f", f)
 }

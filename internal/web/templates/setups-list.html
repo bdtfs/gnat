@@ -4,12 +4,20 @@
     <div class="list-item">
         <div class="list-item-main">
             <div class="list-item-title">{{.name}}</div>
-            <div class="list-item-desc">{{.description}}</div>
+            {{if .description}}<div class="list-item-desc">{{.description}}</div>{{end}}
             <div class="list-item-meta">
-                <span class="badge">{{.method}}</span>
-                <span>{{.url}}</span>
-                <span>{{.rps}} RPS</span>
-                <span>{{.duration}}</span>
+                <span class="badge badge-method">{{.method}}</span>
+                <span class="meta-url">{{.url}}</span>
+            </div>
+            <div class="list-item-meta">
+                <span class="meta-item">
+                    <span class="meta-label">RPS:</span>
+                    <span class="meta-value">{{.rps}}</span>
+                </span>
+                <span class="meta-item">
+                    <span class="meta-label">Duration:</span>
+                    <span class="meta-value">{{formatDuration .duration}}</span>
+                </span>
             </div>
         </div>
         <div class="list-item-actions">

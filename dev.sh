@@ -5,7 +5,7 @@ trap 'kill 0' SIGINT
 echo "Starting gnat services..."
 echo ""
 
-APPLICATION_PORT=8778 go run ./cmd/gnat &
+APPLICATION_PORT=8778 go run ./cmd/gnat-backend &
 BACKEND_PID=$!
 
 sleep 2

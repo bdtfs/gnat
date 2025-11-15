@@ -12,9 +12,9 @@
 
         <div class="detail-section">
             <h3>Timing</h3>
-            <p><strong>Started:</strong> {{.started_at}}</p>
-            {{if .elapsed}}<p><strong>Elapsed:</strong> {{.elapsed}}</p>{{end}}
-            {{if .ended_at}}<p><strong>Ended:</strong> {{.ended_at}}</p>{{end}}
+            <p><strong>Started:</strong> {{formatTime .started_at}}</p>
+            {{if .elapsed}}<p><strong>Elapsed:</strong> {{formatDuration .elapsed}}</p>{{end}}
+            {{if .ended_at}}<p><strong>Ended:</strong> {{formatTime .ended_at}}</p>{{end}}
         </div>
 
         {{if .stats}}
@@ -28,11 +28,11 @@
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">Success Rate</div>
-                    <div class="stat-value-lg">{{printf "%.2f" .stats.success_rate}}%</div>
+                    <div class="stat-value-lg">{{formatFloat .stats.success_rate}}%</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">Current RPS</div>
-                    <div class="stat-value-lg">{{printf "%.2f" .stats.rps}}</div>
+                    <div class="stat-value-lg">{{formatFloat .stats.rps}}</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">Bytes Read</div>
@@ -44,31 +44,31 @@
             <div class="latency-table">
                 <div class="latency-row">
                     <span>Min:</span>
-                    <span>{{printf "%.2f" .stats.min_latency_ms}}ms</span>
+                    <span>{{formatFloat .stats.min_latency_ms}}ms</span>
                 </div>
                 <div class="latency-row">
                     <span>Avg:</span>
-                    <span>{{printf "%.2f" .stats.avg_latency_ms}}ms</span>
+                    <span>{{formatFloat .stats.avg_latency_ms}}ms</span>
                 </div>
                 <div class="latency-row">
                     <span>Max:</span>
-                    <span>{{printf "%.2f" .stats.max_latency_ms}}ms</span>
+                    <span>{{formatFloat .stats.max_latency_ms}}ms</span>
                 </div>
                 <div class="latency-row">
                     <span>P50:</span>
-                    <span>{{printf "%.2f" .stats.p50_latency_ms}}ms</span>
+                    <span>{{formatFloat .stats.p50_latency_ms}}ms</span>
                 </div>
                 <div class="latency-row">
                     <span>P90:</span>
-                    <span>{{printf "%.2f" .stats.p90_latency_ms}}ms</span>
+                    <span>{{formatFloat .stats.p90_latency_ms}}ms</span>
                 </div>
                 <div class="latency-row">
                     <span>P95:</span>
-                    <span>{{printf "%.2f" .stats.p95_latency_ms}}ms</span>
+                    <span>{{formatFloat .stats.p95_latency_ms}}ms</span>
                 </div>
                 <div class="latency-row">
                     <span>P99:</span>
-                    <span>{{printf "%.2f" .stats.p99_latency_ms}}ms</span>
+                    <span>{{formatFloat .stats.p99_latency_ms}}ms</span>
                 </div>
             </div>
 
