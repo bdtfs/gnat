@@ -1,4 +1,4 @@
-package attack
+package runner
 
 import (
 	"bytes"
@@ -13,7 +13,14 @@ import (
 	httpclient "github.com/bdtfs/gnat/pkg/clients/http"
 )
 
-func Run(ctx context.Context, cfg *httpclient.Config, method, url string, rps int, d time.Duration, body []byte) (*stats.Stats, error) {
+func (r *Runner) run(
+	ctx context.Context,
+	cfg *httpclient.Config,
+	method, url string,
+	rps int,
+	d time.Duration,
+	body []byte,
+) (*stats.Stats, error) {
 	if url == "" {
 		return nil, fmt.Errorf("url cannot be empty")
 	}
@@ -40,18 +47,20 @@ func Run(ctx context.Context, cfg *httpclient.Config, method, url string, rps in
 	results := make(chan *stats.Result, rps*2)
 
 	go func() {
-		for r := range results {
-			statistics.Record(r)
+		for res := range results {
+			statistics.Record(res)
 		}
 	}()
 
 	for {
 		select {
 		case <-ctx.Done():
+			r.logger.Warn("context canceled")
 			wg.Wait()
 			close(results)
 			return statistics, nil
 		case <-ticker.C:
+			r.logger.Debug("do single request", "url", url)
 			wg.Add(1)
 			go func() {
 				defer wg.Done()

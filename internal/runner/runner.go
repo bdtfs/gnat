@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
-	"github.com/bdtfs/gnat/internal/attack"
 	"github.com/bdtfs/gnat/internal/models"
 	"github.com/bdtfs/gnat/internal/stats"
 	repository "github.com/bdtfs/gnat/internal/storage/memory"
@@ -15,13 +15,15 @@ import (
 
 type Runner struct {
 	repo         *repository.Repository
+	logger       *slog.Logger
 	activeRuns   map[string]context.CancelFunc
 	activeRunsMu sync.RWMutex
 }
 
-func New(repo *repository.Repository) *Runner {
+func New(repo *repository.Repository, logger *slog.Logger) *Runner {
 	return &Runner{
 		repo:       repo,
+		logger:     logger,
 		activeRuns: make(map[string]context.CancelFunc),
 	}
 }
@@ -39,7 +41,7 @@ func (r *Runner) StartRun(ctx context.Context, setupID string) (*models.Run, err
 	run := models.NewRun(setupID)
 	run.Status = models.RunStatusRunning
 
-	if err := r.repo.CreateRun(run); err != nil {
+	if err = r.repo.CreateRun(run); err != nil {
 		return nil, fmt.Errorf("create run: %w", err)
 	}
 
@@ -48,6 +50,13 @@ func (r *Runner) StartRun(ctx context.Context, setupID string) (*models.Run, err
 	r.activeRunsMu.Lock()
 	r.activeRuns[run.ID] = cancel
 	r.activeRunsMu.Unlock()
+
+	r.logger.Info("run execution starting",
+		"run_id", run.ID,
+		"setup_id", setupID,
+		"url", setup.URL,
+		"rps", setup.RPS,
+		"duration", setup.Duration)
 
 	go r.executeRun(runCtx, run, setup)
 
@@ -61,16 +70,20 @@ func (r *Runner) executeRun(ctx context.Context, run *models.Run, setup *models.
 		r.activeRunsMu.Unlock()
 	}()
 
+	r.logger.Info("executing attack", "run_id", run.ID, "url", setup.URL, "rps", setup.RPS)
+
 	attackCtx := context.Background()
-	attackStats, err := attack.Run(attackCtx, nil, setup.Method, setup.URL, setup.RPS, setup.Duration, setup.Body)
+	attackStats, err := r.run(attackCtx, nil, setup.Method, setup.URL, setup.RPS, setup.Duration, setup.Body)
 
 	run.EndedAt = time.Now()
 
 	if err != nil {
 		run.Status = models.RunStatusFailed
 		run.Error = err.Error()
+		r.logger.Error("run failed", "run_id", run.ID, "error", err)
 	} else if errors.Is(ctx.Err(), context.Canceled) {
 		run.Status = models.RunStatusCancelled
+		r.logger.Info("run cancelled", "run_id", run.ID)
 	} else {
 		run.Status = models.RunStatusCompleted
 		run.Stats = &models.RunStats{
@@ -80,10 +93,17 @@ func (r *Runner) executeRun(ctx context.Context, run *models.Run, setup *models.
 			AvgLatency:  attackStats.AvgLatency(),
 			SuccessRate: r.calculateSuccessRate(attackStats),
 		}
+		r.logger.Info("run completed",
+			"run_id", run.ID,
+			"total", run.Stats.Total,
+			"success", run.Stats.Success,
+			"failed", run.Stats.Failed,
+			"avg_latency", run.Stats.AvgLatency,
+			"success_rate", run.Stats.SuccessRate)
 	}
 
-	if err := r.repo.UpdateRun(run); err != nil {
-		fmt.Printf("failed to update run: %v\n", err)
+	if err = r.repo.UpdateRun(run); err != nil {
+		r.logger.Error("failed to update run", "run_id", run.ID, "error", err)
 	}
 }
 
@@ -104,6 +124,7 @@ func (r *Runner) CancelRun(runID string) error {
 		return fmt.Errorf("run %s is not active", runID)
 	}
 
+	r.logger.Info("cancelling run", "run_id", runID)
 	cancel()
 	return nil
 }

@@ -2,7 +2,9 @@ package di
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
+	"os"
 	"sync"
 
 	"github.com/bdtfs/gnat/internal/config"
@@ -31,6 +33,9 @@ type Container struct {
 
 	server     *server.Server
 	serverOnce sync.Once
+
+	logger     *slog.Logger
+	loggerOnce sync.Once
 }
 
 func New(ctx context.Context) *Container {
@@ -58,6 +63,17 @@ func (c *Container) GetHTTPClient() *http.Client {
 	return c.httpClient
 }
 
+func (c *Container) GetLogger() *slog.Logger {
+	c.loggerOnce.Do(func() {
+		opts := &slog.HandlerOptions{
+			Level: slog.LevelDebug,
+		}
+		handler := slog.NewJSONHandler(os.Stdout, opts)
+		c.logger = slog.New(handler)
+	})
+	return c.logger
+}
+
 func (c *Container) GetRepository() *repository.Repository {
 	c.repoOnce.Do(func() {
 		c.repo = repository.New()
@@ -67,7 +83,7 @@ func (c *Container) GetRepository() *repository.Repository {
 
 func (c *Container) GetRunner() *runner.Runner {
 	c.runnerOnce.Do(func() {
-		c.runner = runner.New(c.GetRepository())
+		c.runner = runner.New(c.GetRepository(), c.GetLogger())
 	})
 	return c.runner
 }

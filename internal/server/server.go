@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -58,7 +57,7 @@ func (s *Server) Start(ctx context.Context) error {
 		}
 	}()
 
-	if err := s.server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+	if err := s.server.ListenAndServe(); err != http.ErrServerClosed {
 		return err
 	}
 
