@@ -53,13 +53,13 @@ type RunStats struct {
 	Total       uint64         `json:"total"`
 	Success     uint64         `json:"success"`
 	Failed      uint64         `json:"failed"`
-	AvgLatency  time.Duration  `json:"avg_latency"`
-	MinLatency  time.Duration  `json:"min_latency"`
-	MaxLatency  time.Duration  `json:"max_latency"`
-	P50Latency  time.Duration  `json:"p50_latency"`
-	P90Latency  time.Duration  `json:"p90_latency"`
-	P95Latency  time.Duration  `json:"p95_latency"`
-	P99Latency  time.Duration  `json:"p99_latency"`
+	AvgLatency  float64        `json:"avg_latency_ms"`
+	MinLatency  float64        `json:"min_latency_ms"`
+	MaxLatency  float64        `json:"max_latency_ms"`
+	P50Latency  float64        `json:"p50_latency_ms"`
+	P90Latency  float64        `json:"p90_latency_ms"`
+	P95Latency  float64        `json:"p95_latency_ms"`
+	P99Latency  float64        `json:"p99_latency_ms"`
 	SuccessRate float64        `json:"success_rate"`
 	RPS         float64        `json:"rps"`
 	BytesRead   uint64         `json:"bytes_read"`

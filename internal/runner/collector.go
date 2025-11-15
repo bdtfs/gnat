@@ -1,4 +1,4 @@
-package stats
+package runner
 
 import (
 	"context"
@@ -28,7 +28,7 @@ func (c *Collector) StartRun(runID string) chan<- *Result {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	stats := New()
+	stats := NewStats()
 	c.runs[runID] = stats
 
 	resultChan := make(chan *Result, 1000)

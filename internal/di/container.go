@@ -13,7 +13,6 @@ import (
 	"github.com/bdtfs/gnat/internal/runner"
 	"github.com/bdtfs/gnat/internal/server"
 	"github.com/bdtfs/gnat/internal/service"
-	"github.com/bdtfs/gnat/internal/stats"
 	repository "github.com/bdtfs/gnat/internal/storage/memory"
 	httpclient "github.com/bdtfs/gnat/pkg/clients/http"
 )
@@ -28,7 +27,7 @@ type Container struct {
 	repo     *repository.Repository
 	repoOnce sync.Once
 
-	collector     *stats.Collector
+	collector     *runner.Collector
 	collectorOnce sync.Once
 
 	runner     *runner.Runner
@@ -87,9 +86,9 @@ func (c *Container) GetRepository() *repository.Repository {
 	return c.repo
 }
 
-func (c *Container) GetCollector() *stats.Collector {
+func (c *Container) GetCollector() *runner.Collector {
 	c.collectorOnce.Do(func() {
-		c.collector = stats.NewCollector()
+		c.collector = runner.NewCollector()
 	})
 	return c.collector
 }

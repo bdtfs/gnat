@@ -9,19 +9,18 @@ import (
 	"time"
 
 	"github.com/bdtfs/gnat/internal/models"
-	"github.com/bdtfs/gnat/internal/stats"
 	repository "github.com/bdtfs/gnat/internal/storage/memory"
 )
 
 type Runner struct {
 	repo         *repository.Repository
 	logger       *slog.Logger
-	collector    *stats.Collector
+	collector    *Collector
 	activeRuns   map[string]context.CancelFunc
 	activeRunsMu sync.RWMutex
 }
 
-func New(repo *repository.Repository, logger *slog.Logger, collector *stats.Collector) *Runner {
+func New(repo *repository.Repository, logger *slog.Logger, collector *Collector) *Runner {
 	return &Runner{
 		repo:       repo,
 		logger:     logger,
@@ -134,7 +133,7 @@ func (r *Runner) executeRun(ctx context.Context, run *models.Run, setup *models.
 	}
 }
 
-func (r *Runner) calculateSuccessRate(s *stats.Stats) float64 {
+func (r *Runner) calculateSuccessRate(s *Stats) float64 {
 	total := s.Total()
 	if total == 0 {
 		return 0
@@ -168,7 +167,7 @@ func (r *Runner) GetActiveRuns() []string {
 	return runIDs
 }
 
-func (r *Runner) GetLiveStats(runID string) *stats.Stats {
+func (r *Runner) GetLiveStats(runID string) *Stats {
 	return r.collector.GetStats(runID)
 }
 

@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bdtfs/gnat/internal/stats"
 	httpclient "github.com/bdtfs/gnat/pkg/clients/http"
 )
 
@@ -43,32 +42,35 @@ func (r *Runner) run(
 	ticker := time.NewTicker(time.Second / time.Duration(rps))
 	defer ticker.Stop()
 
-	ctx, cancel := context.WithTimeout(ctx, d)
-	defer cancel()
-
+	stopTime := time.Now().Add(d)
 	var wg sync.WaitGroup
+	requestCtx := context.WithoutCancel(ctx)
 
 	for {
 		select {
 		case <-ctx.Done():
+			ticker.Stop()
 			wg.Wait()
 			return nil
 		case <-ticker.C:
+			if time.Now().After(stopTime) {
+				ticker.Stop()
+				wg.Wait()
+				return nil
+			}
+
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				result := send(ctx, client, method, url, body)
-				select {
-				case resultChan <- result:
-				case <-ctx.Done():
-				}
+				result := send(requestCtx, client, method, url, body)
+				resultChan <- result
 			}()
 		}
 	}
 }
 
-func send(ctx context.Context, client *http.Client, method, url string, body []byte) *stats.Result {
-	result := &stats.Result{
+func send(ctx context.Context, client *http.Client, method, url string, body []byte) *Result {
+	result := &Result{
 		Timestamp: time.Now(),
 	}
 

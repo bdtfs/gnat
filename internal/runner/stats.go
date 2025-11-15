@@ -1,4 +1,4 @@
-package stats
+package runner
 
 import (
 	"sort"
@@ -34,7 +34,7 @@ type Stats struct {
 	errorsMu sync.RWMutex
 }
 
-func New() *Stats {
+func NewStats() *Stats {
 	return &Stats{
 		statusCodes: make(map[int]*uint64),
 		latencies:   make([]time.Duration, 0, 10000),
@@ -96,17 +96,17 @@ func (s *Stats) BytesRead() uint64 {
 	return atomic.LoadUint64(&s.TotalBytesRead)
 }
 
-func (s *Stats) AvgLatency() time.Duration {
+func (s *Stats) AvgLatency() float64 {
 	total := s.Total()
 	if total == 0 {
 		return 0
 	}
 	s.latencyMu.Lock()
 	defer s.latencyMu.Unlock()
-	return s.TotalLatency / time.Duration(total)
+	return float64(s.TotalLatency.Microseconds()) / float64(total) / 1000.0
 }
 
-func (s *Stats) MinLatency() time.Duration {
+func (s *Stats) MinLatency() float64 {
 	s.latenciesMu.Lock()
 	defer s.latenciesMu.Unlock()
 
@@ -120,10 +120,10 @@ func (s *Stats) MinLatency() time.Duration {
 			min = l
 		}
 	}
-	return min
+	return float64(min.Microseconds()) / 1000.0
 }
 
-func (s *Stats) MaxLatency() time.Duration {
+func (s *Stats) MaxLatency() float64 {
 	s.latenciesMu.Lock()
 	defer s.latenciesMu.Unlock()
 
@@ -137,10 +137,10 @@ func (s *Stats) MaxLatency() time.Duration {
 			max = l
 		}
 	}
-	return max
+	return float64(max.Microseconds()) / 1000.0
 }
 
-func (s *Stats) Percentile(p float64) time.Duration {
+func (s *Stats) Percentile(p float64) float64 {
 	s.latenciesMu.Lock()
 	defer s.latenciesMu.Unlock()
 
@@ -157,7 +157,7 @@ func (s *Stats) Percentile(p float64) time.Duration {
 		index = len(sorted) - 1
 	}
 
-	return sorted[index]
+	return float64(sorted[index].Microseconds()) / 1000.0
 }
 
 func (s *Stats) StatusCodeDistribution() map[int]uint64 {
