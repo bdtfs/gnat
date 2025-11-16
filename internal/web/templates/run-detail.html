@@ -1,105 +1,260 @@
-<div class="modal-content">
-    <div class="modal-header">
-        <h2>Run Details</h2>
-        <button class="modal-close" onclick="hideModal(event)">×</button>
+<div class="modal-content"
+     {{if or (eq .status "running") (eq .status "pending")}}
+hx-get="/runs/{{.id}}"
+hx-trigger="every 2s"
+hx-target="this"
+hx-swap="outerHTML"
+{{end}}>
+<div class="modal-header">
+    <h2>Run Details</h2>
+    <button class="modal-close" onclick="hideModal(event)">×</button>
+</div>
+
+<div class="modal-body">
+    <div class="detail-section">
+        <h3>Status</h3>
+        <span class="status status-{{.status}}">{{.status}}</span>
     </div>
 
-    <div class="modal-body">
-        <div class="detail-section">
-            <h3>Status</h3>
-            <span class="status status-{{.status}}">{{.status}}</span>
+    <div class="detail-section">
+        <h3>Timing</h3>
+        <p><strong>Started:</strong> {{formatTime .started_at}}</p>
+        {{if .elapsed}}<p><strong>Elapsed:</strong> {{formatDuration .elapsed}}</p>{{end}}
+        {{if .ended_at}}<p><strong>Ended:</strong> {{formatTime .ended_at}}</p>{{end}}
+    </div>
+
+    {{if .stats}}
+    <div class="detail-section">
+        <h3>Statistics</h3>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Requests</div>
+                <div class="stat-value-lg">{{.stats.total}}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Success Rate</div>
+                <div class="stat-value-lg">{{formatFloat (mul .stats.success_rate 100)}}%</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Current RPS</div>
+                <div class="stat-value-lg">{{formatFloat .stats.rps}}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Bytes Read</div>
+                <div class="stat-value-lg">{{.stats.bytes_read}}</div>
+            </div>
         </div>
 
-        <div class="detail-section">
-            <h3>Timing</h3>
-            <p><strong>Started:</strong> {{formatTime .started_at}}</p>
-            {{if .elapsed}}<p><strong>Elapsed:</strong> {{formatDuration .elapsed}}</p>{{end}}
-            {{if .ended_at}}<p><strong>Ended:</strong> {{formatTime .ended_at}}</p>{{end}}
+        <div class="charts-section">
+            <h4>Performance Metrics</h4>
+            <div class="charts-grid">
+                <div class="chart-container">
+                    <h5>Latency Distribution</h5>
+                    <canvas id="latencyChart-{{.id}}"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h5>Success vs Failed</h5>
+                    <canvas id="successChart-{{.id}}"></canvas>
+                </div>
+            </div>
+            {{if .stats.status_codes}}
+            <div class="chart-container-full">
+                <h5>HTTP Status Codes</h5>
+                <canvas id="statusCodesChart-{{.id}}"></canvas>
+            </div>
+            {{end}}
         </div>
 
-        {{if .stats}}
-        <div class="detail-section">
-            <h3>Statistics</h3>
-
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-label">Total Requests</div>
-                    <div class="stat-value-lg">{{.stats.total}}</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Success Rate</div>
-                    <div class="stat-value-lg">{{formatFloat .stats.success_rate}}%</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Current RPS</div>
-                    <div class="stat-value-lg">{{formatFloat .stats.rps}}</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Bytes Read</div>
-                    <div class="stat-value-lg">{{.stats.bytes_read}}</div>
-                </div>
+        <h4>Latency Percentiles</h4>
+        <div class="latency-table">
+            <div class="latency-row">
+                <span>Min:</span>
+                <span>{{formatFloat .stats.min_latency_ms}}ms</span>
             </div>
-
-            <h4>Latency Distribution</h4>
-            <div class="latency-table">
-                <div class="latency-row">
-                    <span>Min:</span>
-                    <span>{{formatFloat .stats.min_latency_ms}}ms</span>
-                </div>
-                <div class="latency-row">
-                    <span>Avg:</span>
-                    <span>{{formatFloat .stats.avg_latency_ms}}ms</span>
-                </div>
-                <div class="latency-row">
-                    <span>Max:</span>
-                    <span>{{formatFloat .stats.max_latency_ms}}ms</span>
-                </div>
-                <div class="latency-row">
-                    <span>P50:</span>
-                    <span>{{formatFloat .stats.p50_latency_ms}}ms</span>
-                </div>
-                <div class="latency-row">
-                    <span>P90:</span>
-                    <span>{{formatFloat .stats.p90_latency_ms}}ms</span>
-                </div>
-                <div class="latency-row">
-                    <span>P95:</span>
-                    <span>{{formatFloat .stats.p95_latency_ms}}ms</span>
-                </div>
-                <div class="latency-row">
-                    <span>P99:</span>
-                    <span>{{formatFloat .stats.p99_latency_ms}}ms</span>
-                </div>
+            <div class="latency-row">
+                <span>Avg:</span>
+                <span>{{formatFloat .stats.avg_latency_ms}}ms</span>
             </div>
+            <div class="latency-row">
+                <span>Max:</span>
+                <span>{{formatFloat .stats.max_latency_ms}}ms</span>
+            </div>
+            <div class="latency-row">
+                <span>P50:</span>
+                <span>{{formatFloat .stats.p50_latency_ms}}ms</span>
+            </div>
+            <div class="latency-row">
+                <span>P90:</span>
+                <span>{{formatFloat .stats.p90_latency_ms}}ms</span>
+            </div>
+            <div class="latency-row">
+                <span>P95:</span>
+                <span>{{formatFloat .stats.p95_latency_ms}}ms</span>
+            </div>
+            <div class="latency-row">
+                <span>P99:</span>
+                <span>{{formatFloat .stats.p99_latency_ms}}ms</span>
+            </div>
+        </div>
+
+        {{if .stats.errors}}
+        <h4>Errors</h4>
+        <div class="errors-list">
+            {{range .stats.errors}}
+            <div class="error-item">{{.}}</div>
+            {{end}}
+        </div>
+        {{end}}
+    </div>
+
+    <script>
+        (function() {
+            const runId = '{{.id}}';
+            const stats = {{.stats | json}};
+
+            const chartIds = [
+                'latencyChart-' + runId,
+                'successChart-' + runId,
+                'statusCodesChart-' + runId
+            ];
+
+            chartIds.forEach(id => {
+                const canvas = document.getElementById(id);
+                if (canvas) {
+                    const existingChart = Chart.getChart(canvas);
+                    if (existingChart) {
+                        existingChart.destroy();
+                    }
+                }
+            });
+
+            Chart.defaults.color = '#888';
+            Chart.defaults.borderColor = '#333';
+            Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+
+            const chartOptions = {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        labels: { color: '#e0e0e0' }
+                    }
+                }
+            };
+
+            new Chart(document.getElementById('latencyChart-' + runId), {
+                type: 'bar',
+                data: {
+                    labels: ['Min', 'P50', 'P90', 'P95', 'P99', 'Max'],
+                    datasets: [{
+                        label: 'Latency (ms)',
+                        data: [
+                            stats.min_latency_ms,
+                            stats.p50_latency_ms,
+                            stats.p90_latency_ms,
+                            stats.p95_latency_ms,
+                            stats.p99_latency_ms,
+                            stats.max_latency_ms
+                        ],
+                        backgroundColor: [
+                            '#00cc66',
+                            '#00d4aa',
+                            '#00d4aa',
+                            '#ffaa00',
+                            '#ff8800',
+                            '#ff4444'
+                        ],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    ...chartOptions,
+                    plugins: {
+                        ...chartOptions.plugins,
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: '#252525' },
+                            ticks: { color: '#888' }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: '#888' }
+                        }
+                    }
+                }
+            });
+
+            new Chart(document.getElementById('successChart-' + runId), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Success', 'Failed'],
+                    datasets: [{
+                        data: [stats.success, stats.failed],
+                        backgroundColor: ['#00cc66', '#ff4444'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    ...chartOptions,
+                    cutout: '60%'
+                }
+            });
 
             {{if .stats.status_codes}}
-            <h4>Status Codes</h4>
-            <div class="status-codes">
-                {{range $code, $count := .stats.status_codes}}
-                <div class="status-code-item">
-                    <span class="badge">{{$code}}</span>
-                    <span>{{$count}}</span>
-                </div>
-                {{end}}
-            </div>
-            {{end}}
+            const statusCodes = {{.stats.status_codes | json}};
+            const codes = Object.keys(statusCodes).sort();
+            const counts = codes.map(code => statusCodes[code]);
 
-            {{if .stats.errors}}
-            <h4>Errors</h4>
-            <div class="errors-list">
-                {{range .stats.errors}}
-                <div class="error-item">{{.}}</div>
-                {{end}}
-            </div>
+            new Chart(document.getElementById('statusCodesChart-' + runId), {
+                type: 'bar',
+                data: {
+                    labels: codes,
+                    datasets: [{
+                        label: 'Count',
+                        data: counts,
+                        backgroundColor: codes.map(code => {
+                            if (code.startsWith('2')) return '#00cc66';
+                            if (code.startsWith('3')) return '#00d4aa';
+                            if (code.startsWith('4')) return '#ffaa00';
+                            if (code.startsWith('5')) return '#ff4444';
+                            return '#888';
+                        }),
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    ...chartOptions,
+                    plugins: {
+                        ...chartOptions.plugins,
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: '#252525' },
+                            ticks: { color: '#888' }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: '#888' }
+                        }
+                    }
+                }
+            });
             {{end}}
-        </div>
-        {{end}}
+        })();
+    </script>
+    {{end}}
 
-        {{if .error}}
-        <div class="detail-section">
-            <h3>Error</h3>
-            <div class="error-box">{{.error}}</div>
-        </div>
-        {{end}}
+    {{if .error}}
+    <div class="detail-section">
+        <h3>Error</h3>
+        <div class="error-box">{{.error}}</div>
     </div>
+    {{end}}
+</div>
 </div>

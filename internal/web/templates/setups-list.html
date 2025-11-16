@@ -21,7 +21,7 @@
             </div>
         </div>
         <div class="list-item-actions">
-            <form hx-post="/runs" hx-target="#runs-list" style="display: inline;">
+            <form hx-post="/runs" hx-target="#active-runs-list" style="display: inline;">
                 <input type="hidden" name="setup_id" value="{{.id}}">
                 <button type="submit" class="btn btn-sm btn-success">▶ Run</button>
             </form>

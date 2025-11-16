@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>gnat - Load Testing</title>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -81,22 +82,64 @@
         <section class="card">
             <div class="card-header">
                 <h2>Active Runs</h2>
+                <button onclick="toggleHistory()" class="btn btn-sm">📋 History</button>
             </div>
 
-            <div id="runs-list"
-                 hx-get="/runs"
+            <div id="active-runs-list"
+                 hx-get="/runs/active"
                  hx-trigger="load, every 2s, runCreated from:body, runCancelled from:body"
                  hx-swap="innerHTML">
                 <div class="loading">Loading runs...</div>
             </div>
         </section>
     </div>
+
+    <div id="history-modal" class="modal" onclick="hideHistory(event)">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>All Runs</h2>
+                <button class="modal-close" onclick="hideHistory(event)">×</button>
+            </div>
+            <div class="modal-body">
+                <div id="all-runs-list"
+                     hx-get="/runs"
+                     hx-trigger="load, historyOpened from:body"
+                     hx-swap="innerHTML">
+                    <div class="loading">Loading all runs...</div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
+
+<div id="run-detail-modal" class="modal" onclick="hideModal(event)"></div>
 
 <script>
     function toggleForm() {
         const form = document.getElementById('setup-form');
         form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function toggleHistory() {
+        const modal = document.getElementById('history-modal');
+        modal.classList.add('show');
+        document.body.dispatchEvent(new CustomEvent('historyOpened'));
+    }
+
+    function hideHistory(e) {
+        if (e.target.id === 'history-modal' || e.target.className === 'modal-close') {
+            document.getElementById('history-modal').classList.remove('show');
+        }
+    }
+
+    function showModal() {
+        document.getElementById('run-detail-modal').classList.add('show');
+    }
+
+    function hideModal(e) {
+        if (e.target.className === 'modal show' || e.target.className === 'modal-close') {
+            document.getElementById('run-detail-modal').classList.remove('show');
+        }
     }
 
     document.body.addEventListener('setupCreated', () => {

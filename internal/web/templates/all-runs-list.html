@@ -1,0 +1,70 @@
+{{if .}}
+<div class="list">
+    {{range .}}
+    <div class="run-card">
+        <div class="run-header">
+            <div class="run-title">
+                <span class="status status-{{.status}}">{{.status}}</span>
+                <span class="run-id">{{.id}}</span>
+            </div>
+            <div class="run-actions">
+                <button class="btn btn-sm"
+                        hx-get="/runs/{{.id}}"
+                        hx-target="#run-detail-modal"
+                        onclick="hideHistory(event); showModal()">
+                    Details
+                </button>
+            </div>
+        </div>
+
+        <div class="run-timing">
+            {{if .started_at}}
+            <div class="timing-item">
+                <span class="timing-label">Started:</span>
+                <span class="timing-value">{{formatTime .started_at}}</span>
+            </div>
+            {{end}}
+            {{if .elapsed}}
+            <div class="timing-item">
+                <span class="timing-label">Elapsed:</span>
+                <span class="timing-value">{{formatDuration .elapsed}}</span>
+            </div>
+            {{end}}
+        </div>
+
+        {{if .stats}}
+        <div class="run-stats">
+            <div class="stat-box">
+                <div class="stat-label">Requests</div>
+                <div class="stat-value">{{.stats.total}}</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Success</div>
+                <div class="stat-value stat-success">{{.stats.success}}</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Failed</div>
+                <div class="stat-value {{if gt .stats.failed 0}}stat-error{{end}}">{{.stats.failed}}</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Avg Latency</div>
+                <div class="stat-value">{{formatFloat .stats.avg_latency_ms}}ms</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">P95</div>
+                <div class="stat-value">{{formatFloat .stats.p95_latency_ms}}ms</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">RPS</div>
+                <div class="stat-value stat-primary">{{formatFloat .stats.rps}}</div>
+            </div>
+        </div>
+        {{end}}
+    </div>
+    {{end}}
+</div>
+{{else}}
+<div class="empty-state">
+    <p>No runs yet.</p>
+</div>
+{{end}}

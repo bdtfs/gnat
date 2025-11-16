@@ -66,13 +66,71 @@
             <div class="stat-value stat-primary">{{formatFloat .stats.rps}}</div>
         </div>
     </div>
+
+    {{if eq .status "running"}}
+    <div class="mini-chart-container">
+        <canvas id="miniChart-{{.id}}" class="mini-chart"></canvas>
+    </div>
+    <script>
+        (function() {
+            const canvas = document.getElementById('miniChart-{{.id}}');
+            if (!canvas) return;
+
+            const stats = {{.stats | json}};
+            const ctx = canvas.getContext('2d');
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Min', 'P50', 'P90', 'P95', 'P99'],
+                    datasets: [{
+                        label: 'Latency (ms)',
+                        data: [
+                            stats.min_latency_ms,
+                            stats.p50_latency_ms,
+                            stats.p90_latency_ms,
+                            stats.p95_latency_ms,
+                            stats.p99_latency_ms
+                        ],
+                        borderColor: '#00d4aa',
+                        backgroundColor: 'rgba(0, 212, 170, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#00d4aa',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: true }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: '#252525', drawBorder: false },
+                            ticks: { color: '#666', font: { size: 10 } }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: '#666', font: { size: 10 } }
+                        }
+                    }
+                }
+            });
+        })();
+    </script>
+    {{end}}
     {{end}}
 </div>
 {{end}}
 </div>
 {{else}}
 <div class="empty-state">
-    <p>No runs yet. Start a test setup to begin.</p>
+    <p>No active runs. Start a test to begin.</p>
 </div>
 {{end}}
 

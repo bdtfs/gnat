@@ -59,7 +59,7 @@ func printWelcome(port int, apiURL string) {
 	fmt.Printf(`
 ╔═══════════════════════════════════════════╗
 ║         🦟 gnat Frontend                  ║
-║    Load Testing Web Interface            ║
+║    Load Testing Web Interface             ║
 ╚═══════════════════════════════════════════╝
 
 Web UI:     http://localhost:%d

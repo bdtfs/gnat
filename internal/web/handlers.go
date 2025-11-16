@@ -26,6 +26,8 @@ func NewHandler(apiBase string, logger *slog.Logger) *Handler {
 		"formatTime":     formatTime,
 		"formatDuration": formatDuration,
 		"formatFloat":    formatFloat,
+		"json":           toJSON,
+		"mul":            func(a, b float64) float64 { return a * b },
 	}
 
 	tmpl := template.Must(template.New("").Funcs(funcMap).ParseFS(content, "templates/*.html"))
@@ -44,6 +46,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /setups", h.createSetup)
 	mux.HandleFunc("POST /runs", h.createRun)
 	mux.HandleFunc("GET /runs", h.listRuns)
+	mux.HandleFunc("GET /runs/active", h.listActiveRuns)
 	mux.HandleFunc("GET /runs/{id}", h.getRunStats)
 	mux.HandleFunc("POST /runs/{id}/cancel", h.cancelRun)
 	mux.HandleFunc("DELETE /setups/{id}", h.deleteSetup)
@@ -177,7 +180,34 @@ func (h *Handler) listRuns(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.tmpl.ExecuteTemplate(w, "runs-list.html", runs)
+	h.tmpl.ExecuteTemplate(w, "all-runs-list.html", runs)
+}
+
+func (h *Handler) listActiveRuns(w http.ResponseWriter, r *http.Request) {
+	resp, err := http.Get(h.apiBase + "/api/runs")
+	if err != nil {
+		h.logger.Error("failed to fetch runs", "error", err)
+		http.Error(w, "Failed to fetch runs", http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
+	var allRuns []map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&allRuns); err != nil {
+		h.logger.Error("failed to decode runs", "error", err)
+		http.Error(w, "Failed to decode runs", http.StatusInternalServerError)
+		return
+	}
+
+	var activeRuns []map[string]interface{}
+	for _, run := range allRuns {
+		status, ok := run["status"].(string)
+		if ok && (status == "pending" || status == "running") {
+			activeRuns = append(activeRuns, run)
+		}
+	}
+
+	h.tmpl.ExecuteTemplate(w, "runs-list.html", activeRuns)
 }
 
 func (h *Handler) getRunStats(w http.ResponseWriter, r *http.Request) {
@@ -305,4 +335,9 @@ func formatFloat(f float64) string {
 		return fmt.Sprintf("%.2f", f)
 	}
 	return fmt.Sprintf("%.1f", f)
+}
+
+func toJSON(v interface{}) template.JS {
+	data, _ := json.Marshal(v)
+	return template.JS(data)
 }
