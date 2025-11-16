@@ -1,68 +1,75 @@
 {{if .}}
 <div class="list">
-    {{range .}}
-    <div class="run-card">
-        <div class="run-header">
-            <div class="run-title">
-                <span class="status status-{{.status}}">{{.status}}</span>
-                <span class="run-id">{{.id}}</span>
-            </div>
-            <div class="run-actions">
-                <button class="btn btn-sm"
-                        hx-get="/runs/{{.id}}"
-                        hx-target="#run-detail-modal"
-                        onclick="hideHistory(event); showModal()">
-                    Details
-                </button>
-            </div>
+    {{range $index, $run := .}}
+    <div class="run-card-compact">
+        <div class="run-header-compact">
+            <span class="status status-{{$run.status}}">{{$run.status}}</span>
+            <span class="run-id-compact">{{$run.id}}</span>
+            <span class="timing-compact">{{formatTime $run.started_at}}</span>
+            <button class="btn btn-sm"
+                    hx-get="/runs/{{$run.id}}"
+                    hx-target="#run-detail-modal"
+                    onclick="hideHistory(event); showModal()">
+                Details
+            </button>
         </div>
-
-        <div class="run-timing">
-            {{if .started_at}}
-            <div class="timing-item">
-                <span class="timing-label">Started:</span>
-                <span class="timing-value">{{formatTime .started_at}}</span>
-            </div>
-            {{end}}
-            {{if .elapsed}}
-            <div class="timing-item">
-                <span class="timing-label">Elapsed:</span>
-                <span class="timing-value">{{formatDuration .elapsed}}</span>
-            </div>
-            {{end}}
-        </div>
-
-        {{if .stats}}
-        <div class="run-stats">
-            <div class="stat-box">
-                <div class="stat-label">Requests</div>
-                <div class="stat-value">{{.stats.total}}</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-label">Success</div>
-                <div class="stat-value stat-success">{{.stats.success}}</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-label">Failed</div>
-                <div class="stat-value {{if gt .stats.failed 0}}stat-error{{end}}">{{.stats.failed}}</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-label">Avg Latency</div>
-                <div class="stat-value">{{formatFloat .stats.avg_latency_ms}}ms</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-label">P95</div>
-                <div class="stat-value">{{formatFloat .stats.p95_latency_ms}}ms</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-label">RPS</div>
-                <div class="stat-value stat-primary">{{formatFloat .stats.rps}}</div>
-            </div>
+        {{if $run.stats}}
+        <div class="run-stats-compact">
+            <span class="stat-compact">Req: <strong>{{$run.stats.total}}</strong></span>
+            <span class="stat-compact stat-success">✓ {{$run.stats.success}}</span>
+            <span class="stat-compact {{if gt $run.stats.failed 0.0}}stat-error{{end}}">✗ {{$run.stats.failed}}</span>
+            <span class="stat-compact">Avg: <strong>{{formatFloat $run.stats.avg_latency_ms}}ms</strong></span>
+            <span class="stat-compact">P95: <strong>{{formatFloat $run.stats.p95_latency_ms}}ms</strong></span>
+            <span class="stat-compact stat-primary">RPS: <strong>{{formatFloat $run.stats.rps}}</strong></span>
         </div>
         {{end}}
     </div>
     {{end}}
 </div>
+
+<style>
+    .run-card-compact {
+        background: var(--bg);
+        padding: 0.75rem 1rem;
+        border-radius: 4px;
+        border: 1px solid var(--border);
+        margin-bottom: 0.5rem;
+    }
+
+    .run-header-compact {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .run-id-compact {
+        font-family: monospace;
+        font-size: 0.85rem;
+        color: var(--text-dim);
+        flex: 1;
+    }
+
+    .timing-compact {
+        font-size: 0.85rem;
+        color: var(--text-dim);
+    }
+
+    .run-stats-compact {
+        display: flex;
+        gap: 1.5rem;
+        font-size: 0.85rem;
+        padding-left: 0.5rem;
+    }
+
+    .stat-compact {
+        color: var(--text-dim);
+    }
+
+    .stat-compact strong {
+        color: var(--text);
+    }
+</style>
 {{else}}
 <div class="empty-state">
     <p>No runs yet.</p>

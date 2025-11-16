@@ -18,7 +18,7 @@
             <button class="btn btn-sm btn-warning"
                     hx-post="/runs/{{.id}}/cancel"
                     hx-confirm="Cancel this run?">
-                ⏸ Cancel
+                ⸠Cancel
             </button>
             {{end}}
         </div>
@@ -51,7 +51,7 @@
         </div>
         <div class="stat-box">
             <div class="stat-label">Failed</div>
-            <div class="stat-value {{if gt .stats.failed 0}}stat-error{{end}}">{{.stats.failed}}</div>
+            <div class="stat-value {{if gt .stats.failed 0.0}}stat-error{{end}}">{{.stats.failed}}</div>
         </div>
         <div class="stat-box">
             <div class="stat-label">Avg Latency</div>
@@ -71,15 +71,28 @@
     <div class="mini-chart-container">
         <canvas id="miniChart-{{.id}}" class="mini-chart"></canvas>
     </div>
-    <script>
+    {{end}}
+    {{end}}
+</div>
+{{end}}
+</div>
+
+<script>
+    (function() {
+        {{range .}}
+        {{if and .stats (eq .status "running")}}
         (function() {
             const canvas = document.getElementById('miniChart-{{.id}}');
             if (!canvas) return;
 
-            const stats = {{.stats | json}};
-            const ctx = canvas.getContext('2d');
+            const existingChart = Chart.getChart(canvas);
+            if (existingChart) {
+                existingChart.destroy();
+            }
 
-            new Chart(ctx, {
+            const stats = {{.stats | json}};
+
+            new Chart(canvas, {
                 type: 'line',
                 data: {
                     labels: ['Min', 'P50', 'P90', 'P95', 'P99'],
@@ -122,29 +135,12 @@
                 }
             });
         })();
-    </script>
-    {{end}}
-    {{end}}
-</div>
-{{end}}
-</div>
+        {{end}}
+        {{end}}
+    })();
+</script>
 {{else}}
 <div class="empty-state">
     <p>No active runs. Start a test to begin.</p>
 </div>
 {{end}}
-
-<div id="run-detail-modal" class="modal" onclick="hideModal(event)">
-</div>
-
-<script>
-    function showModal() {
-        document.getElementById('run-detail-modal').classList.add('show');
-    }
-
-    function hideModal(e) {
-        if (e.target.className === 'modal show' || e.target.className === 'modal-close') {
-            document.getElementById('run-detail-modal').classList.remove('show');
-        }
-    }
-</script>

@@ -52,13 +52,18 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /setups/{id}", h.deleteSetup)
 }
 
-func (h *Handler) index(w http.ResponseWriter, r *http.Request) {
-	h.tmpl.ExecuteTemplate(w, "index.html", nil)
+func (h *Handler) index(w http.ResponseWriter, _ *http.Request) {
+	if err := h.tmpl.ExecuteTemplate(w, "index.html", nil); err != nil {
+		h.logger.Error("failed to render index", "error", err)
+		http.Error(w, "Failed to render page", http.StatusInternalServerError)
+	}
 }
 
-func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) health(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(`{"status":"ok"}`))
+	if _, err := w.Write([]byte(`{"status":"ok"}`)); err != nil {
+		h.logger.Error("failed to write health response", "error", err)
+	}
 }
 
 func (h *Handler) static(w http.ResponseWriter, r *http.Request) {
@@ -75,17 +80,23 @@ func (h *Handler) static(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	w.Write(data)
+	if _, err := w.Write(data); err != nil {
+		h.logger.Error("failed to write static file", "error", err)
+	}
 }
 
-func (h *Handler) listSetups(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) listSetups(w http.ResponseWriter, _ *http.Request) {
 	resp, err := http.Get(h.apiBase + "/api/setups")
 	if err != nil {
 		h.logger.Error("failed to fetch setups", "error", err)
 		http.Error(w, "Failed to fetch setups", http.StatusInternalServerError)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			h.logger.Error("failed to close response body", "error", err)
+		}
+	}()
 
 	var setups []map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&setups); err != nil {
@@ -94,7 +105,10 @@ func (h *Handler) listSetups(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.tmpl.ExecuteTemplate(w, "setups-list.html", setups)
+	if err := h.tmpl.ExecuteTemplate(w, "setups-list.html", setups); err != nil {
+		h.logger.Error("failed to render template", "error", err)
+		http.Error(w, "Failed to render setups", http.StatusInternalServerError)
+	}
 }
 
 func (h *Handler) createSetup(w http.ResponseWriter, r *http.Request) {
@@ -121,7 +135,11 @@ func (h *Handler) createSetup(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to create setup", http.StatusInternalServerError)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			h.logger.Error("failed to close response body", "error", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(resp.Body)
@@ -151,7 +169,11 @@ func (h *Handler) createRun(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to create run", http.StatusInternalServerError)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			h.logger.Error("failed to close response body", "error", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(resp.Body)
@@ -164,33 +186,44 @@ func (h *Handler) createRun(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (h *Handler) listRuns(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) listRuns(w http.ResponseWriter, _ *http.Request) {
 	resp, err := http.Get(h.apiBase + "/api/runs")
 	if err != nil {
 		h.logger.Error("failed to fetch runs", "error", err)
 		http.Error(w, "Failed to fetch runs", http.StatusInternalServerError)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err = resp.Body.Close(); err != nil {
+			h.logger.Error("failed to close response body", "error", err)
+		}
+	}()
 
 	var runs []map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&runs); err != nil {
+	if err = json.NewDecoder(resp.Body).Decode(&runs); err != nil {
 		h.logger.Error("failed to decode runs", "error", err)
 		http.Error(w, "Failed to decode runs", http.StatusInternalServerError)
 		return
 	}
 
-	h.tmpl.ExecuteTemplate(w, "all-runs-list.html", runs)
+	if err = h.tmpl.ExecuteTemplate(w, "all-runs-list.html", runs); err != nil {
+		h.logger.Error("failed to render template", "error", err)
+		http.Error(w, "Failed to render runs", http.StatusInternalServerError)
+	}
 }
 
-func (h *Handler) listActiveRuns(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) listActiveRuns(w http.ResponseWriter, _ *http.Request) {
 	resp, err := http.Get(h.apiBase + "/api/runs")
 	if err != nil {
 		h.logger.Error("failed to fetch runs", "error", err)
 		http.Error(w, "Failed to fetch runs", http.StatusInternalServerError)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			h.logger.Error("failed to close response body", "error", err)
+		}
+	}()
 
 	var allRuns []map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&allRuns); err != nil {
@@ -207,7 +240,10 @@ func (h *Handler) listActiveRuns(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	h.tmpl.ExecuteTemplate(w, "runs-list.html", activeRuns)
+	if err = h.tmpl.ExecuteTemplate(w, "runs-list.html", activeRuns); err != nil {
+		h.logger.Error("failed to render template", "error", err)
+		http.Error(w, "Failed to render active runs", http.StatusInternalServerError)
+	}
 }
 
 func (h *Handler) getRunStats(w http.ResponseWriter, r *http.Request) {
@@ -219,7 +255,11 @@ func (h *Handler) getRunStats(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to fetch run", http.StatusInternalServerError)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			h.logger.Error("failed to close response body", "error", err)
+		}
+	}()
 
 	var run map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&run); err != nil {
@@ -228,7 +268,10 @@ func (h *Handler) getRunStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.tmpl.ExecuteTemplate(w, "run-detail.html", run)
+	if err := h.tmpl.ExecuteTemplate(w, "run-detail.html", run); err != nil {
+		h.logger.Error("failed to render template", "error", err)
+		http.Error(w, "Failed to render run details", http.StatusInternalServerError)
+	}
 }
 
 func (h *Handler) cancelRun(w http.ResponseWriter, r *http.Request) {
@@ -247,7 +290,11 @@ func (h *Handler) cancelRun(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to cancel run", http.StatusInternalServerError)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			h.logger.Error("failed to close response body", "error", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusNoContent {
 		body, _ := io.ReadAll(resp.Body)
@@ -276,7 +323,11 @@ func (h *Handler) deleteSetup(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to delete setup", http.StatusInternalServerError)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			h.logger.Error("failed to close response body", "error", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusNoContent {
 		body, _ := io.ReadAll(resp.Body)
