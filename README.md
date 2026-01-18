@@ -1,238 +1,249 @@
 # gnat
 
-Gnat is a fast, scenario-oriented load testing service and CLI written in Go. It provides simple HTTP-based APIs to define test setups and start runs, 
-collects latency/throughput statistics, and logs requests in JSON. It currently uses in-memory storage.
+[![Go](https://img.shields.io/badge/Go-1.25.3-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](/)
+[![Lint](https://img.shields.io/badge/lint-golangci--lint-purple)](https://golangci-lint.run/)
 
-Note: Some features mentioned in earlier descriptions (e.g., a real-time Web UI, distributed workers) are not present in this repository yet. See TODOs below.
+A fast, scenario-oriented load testing service written in Go. Define test setups via HTTP API, execute runs, and collect detailed latency/throughput statistics with percentile breakdowns.
 
-## Overview
+## Features
 
-- Language/stack: Go (module-based, Go modules)
-- Module: `github.com/bdtfs/gnat`
-- Package manager: `go` (Go modules)
-- Entry point (binary): `./cmd/gnat/main.go`
-- Server framework: standard library `net/http` with Go 1.22+ style patterns (ServeMux)
-- Logging: `log/slog` JSON to stdout
-- Storage: in-memory repository (non-persistent)
-- HTTP client: custom-configured `http.Client` (see env vars)
+- **Simple HTTP API** - Create setups, start runs, and fetch stats via REST endpoints
+- **Configurable Load** - Set requests per second (RPS) and duration per test
+- **Detailed Metrics** - Latency percentiles (P50/P90/P95/P99), success rates, status code distribution
+- **Structured Logging** - JSON logs via `log/slog` for easy parsing
+- **Tunable HTTP Client** - Configure connection pools, timeouts, and keep-alive settings
 
-## Requirements
+## Quick Start
 
-- Go toolchain installed (version as declared in `go.mod`: `go 1.25.3`)
-  - If you are on an older Go version, try with the latest stable Go and update if needed.
-- Git (to clone the repo)
+### Prerequisites
 
-## Getting started
+- Go 1.25.3 or later
+- Git
 
-### Clone
+### Installation
 
-```
+```bash
 git clone https://github.com/bdtfs/gnat.git
 cd gnat
+make build
 ```
 
-### Build
+### Run
 
-```
-go build -o bin/gnat ./cmd/gnat
-```
+```bash
+# Start the server (default port 8778)
+./bin/gnat-backend
 
-### Run (development)
-
-By default, the server binds to `0.0.0.0:${APPLICATION_PORT}`. The default is `8778`.
-
-```
-# default port 8778
-APPLICATION_PORT=8778 go run ./cmd/gnat
-
-# or run the built binary
-APPLICATION_PORT=8778 ./bin/gnat
+# Or with custom port
+APPLICATION_PORT=9000 ./bin/gnat-backend
 ```
 
-On startup, the banner reflects the configured address and prints full endpoint URLs using `APPLICATION_PORT` (default `8778`).
+### Example Usage
 
-## API
+```bash
+# Create a test setup
+curl -X POST http://localhost:8778/api/setups \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Example Test",
+    "method": "GET",
+    "url": "https://httpbin.org/get",
+    "rps": 50,
+    "duration": "10s"
+  }'
 
-Base URL: `http://localhost:${APPLICATION_PORT}` (default `http://localhost:8778`).
+# Start a run (use the setup_id from the response above)
+curl -X POST http://localhost:8778/api/runs \
+  -H "Content-Type: application/json" \
+  -d '{"setup_id": "SETUP_ID_HERE"}'
 
-### Create setup
-
-`POST /api/setups`
-
-Request (JSON):
+# Check run status and stats
+curl http://localhost:8778/api/runs/RUN_ID_HERE
 ```
+
+## Development
+
+### Prerequisites
+
+Install development tools:
+
+```bash
+make tools
+```
+
+This installs:
+- [golangci-lint](https://golangci-lint.run/) v1.64.8 - Linting
+- [govulncheck](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck) v1.1.4 - Vulnerability scanning
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `make build` | Build backend and frontend binaries |
+| `make test` | Run all tests |
+| `make test-race` | Run tests with race detector |
+| `make lint` | Run golangci-lint |
+| `make coverage` | Generate coverage report |
+| `make run-all` | Run backend and frontend servers |
+
+### Test Coverage
+
+Tests use table-driven patterns with `t.Parallel()` for concurrent execution.
+
+| Package | Coverage |
+|---------|----------|
+| `internal/config` | 100% |
+| `internal/models` | 100% |
+| `internal/storage/memory` | 100% |
+| `internal/converters` | 100% |
+| `internal/service` | 95.8% |
+| `internal/server` | 89.6% |
+| `pkg/clients/http` | 100% |
+
+### Linting
+
+The project uses [golangci-lint](https://golangci-lint.run/) with strict settings:
+
+**Enabled Linters:**
+- **Security**: gosec
+- **Correctness**: errcheck, staticcheck, govet
+- **Style**: gofmt, goimports, revive
+- **Complexity**: gocyclo (max 10), gocognit (max 15)
+- **Quality**: unused, ineffassign, misspell, goconst
+
+Run the linter:
+
+```bash
+make lint
+# or directly
+golangci-lint run
+```
+
+## API Reference
+
+Base URL: `http://localhost:8778`
+
+### Setups
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/setups` | Create a new test setup |
+| `GET` | `/api/setups` | List all setups |
+| `GET` | `/api/setups/{id}` | Get setup by ID |
+| `DELETE` | `/api/setups/{id}` | Delete setup |
+
+**Create Setup Request:**
+```json
 {
-  "name": "My test",
-  "description": "Simple GET",
+  "name": "My Test",
+  "description": "Optional description",
   "method": "GET",
-  "url": "https://example.com/api",
+  "url": "https://api.example.com/endpoint",
+  "headers": {"Authorization": "Bearer token"},
   "body": "",
-  "headers": {"Accept": "application/json"},
   "rps": 100,
   "duration": "30s"
 }
 ```
-Notes:
-- `duration` is parsed by Go's `time.ParseDuration` (examples: `"10s"`, `"2m"`, `"1h"`).
-- `body` is a JSON string; when provided it will be parsed as base64 by Go's JSON decoder for `[]byte` fields. For plain-text payloads, provide base64-encoded content.
 
-Response `201 Created` (JSON): `dto.Setup`
-```
+### Runs
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/runs` | Start a new run |
+| `GET` | `/api/runs` | List all runs |
+| `GET` | `/api/runs?setup_id={id}` | List runs for a setup |
+| `GET` | `/api/runs/{id}` | Get run details with stats |
+| `POST` | `/api/runs/{id}/cancel` | Cancel an active run |
+| `GET` | `/api/runs/{id}/stats` | Get run statistics only |
+
+**Run Status Values:** `pending` | `running` | `completed` | `failed` | `cancelled`
+
+**Stats Response:**
+```json
 {
-  "id": "...",
-  "name": "...",
-  "description": "...",
-  "method": "GET",
-  "url": "https://example.com/api",
-  "rps": 100,
-  "duration": 30000000000,
-  "status": "active",
-  "created_at": "2025-11-15T20:46:00Z",
-  "updated_at": "2025-11-15T20:46:00Z"
+  "total": 3000,
+  "success": 2950,
+  "failed": 50,
+  "avg_latency_ms": 45.2,
+  "min_latency_ms": 12.0,
+  "max_latency_ms": 250.0,
+  "p50_latency_ms": 42.0,
+  "p90_latency_ms": 78.0,
+  "p95_latency_ms": 95.0,
+  "p99_latency_ms": 150.0,
+  "success_rate": 0.983,
+  "rps": 99.5,
+  "bytes_read": 1048576,
+  "status_codes": {"200": 2950, "500": 50},
+  "errors": []
 }
 ```
 
-### List setups
+## Configuration
 
-`GET /api/setups`
+### Environment Variables
 
-Response `200 OK`: array of `dto.Setup`.
+**Application:**
 
-### Get setup
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `APPLICATION_PORT` | `8778` | HTTP server port |
 
-`GET /api/setups/{id}` → `200 OK` with `dto.Setup` or `404`.
+**HTTP Client Tuning:**
 
-### Delete setup
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `HTTP_MAX_IDLE_CONNS` | `10000` | Max idle connections |
+| `HTTP_MAX_IDLE_CONNS_PER_HOST` | `10000` | Max idle connections per host |
+| `HTTP_IDLE_CONN_TIMEOUT` | `90s` | Idle connection timeout |
+| `HTTP_DISABLE_COMPRESSION` | `false` | Disable HTTP compression |
+| `HTTP_DIAL_TIMEOUT` | `5s` | TCP dial timeout |
+| `HTTP_KEEPALIVE` | `30s` | Keep-alive duration |
+| `HTTP_TLS_HANDSHAKE_TIMEOUT` | `5s` | TLS handshake timeout |
+| `HTTP_EXPECT_TIMEOUT` | `1s` | Expect 100-continue timeout |
+| `HTTP_REQUEST_TIMEOUT` | `10s` | Overall request timeout |
 
-`DELETE /api/setups/{id}` → `204 No Content` or `404`.
-
-### Start run
-
-`POST /api/runs`
-
-Request:
-```
-{ "setup_id": "{setup_id}" }
-```
-
-Response `201 Created`: `dto.Run`.
-
-### List runs
-
-`GET /api/runs` → list all runs.
-
-Optional filter: `GET /api/runs?setup_id={setup_id}` → runs for a specific setup.
-
-### Get run
-
-`GET /api/runs/{id}` → `200 OK` with `dto.Run` or `404`.
-
-### Cancel run
-
-`POST /api/runs/{id}/cancel` → `204 No Content` or `400` if cannot cancel.
-
-### Get run stats
-
-`GET /api/runs/{id}/stats` → `200 OK` with `dto.Stats`.
-
-`dto.Run` fields (simplified):
-```
-{
-  "id": "...",
-  "setup_id": "...",
-  "status": "pending|running|completed|failed|cancelled",
-  "started_at": "...",
-  "elapsed": "1m2s",
-  "ended_at": "...",           // optional
-  "error": "...",               // optional
-  "stats": { /* see below */ }
-}
-```
-
-`dto.Stats` fields:
-```
-{
-  "total": 0,
-  "success": 0,
-  "failed": 0,
-  "avg_latency_ms": 0,
-  "min_latency_ms": 0,
-  "max_latency_ms": 0,
-  "p50_latency_ms": 0,
-  "p90_latency_ms": 0,
-  "p95_latency_ms": 0,
-  "p99_latency_ms": 0,
-  "success_rate": 0,
-  "rps": 0,
-  "bytes_read": 0,
-  "status_codes": {"200": 123},
-  "errors": ["..."]
-}
-```
-
-## Environment variables
-
-Application:
-- `APPLICATION_PORT` (int) — HTTP port to bind; default: `8778`.
-
-HTTP client tuning (affects outbound load generation):
-- `HTTP_MAX_IDLE_CONNS` (int) — default: `10000`.
-- `HTTP_MAX_IDLE_CONNS_PER_HOST` (int) — default: `10000`.
-- `HTTP_IDLE_CONN_TIMEOUT` (duration) — default: `90s`.
-- `HTTP_DISABLE_COMPRESSION` (bool) — default: `false`.
-- `HTTP_DIAL_TIMEOUT` (duration) — default: `5s`.
-- `HTTP_KEEPALIVE` (duration) — default: `30s`.
-- `HTTP_TLS_HANDSHAKE_TIMEOUT` (duration) — default: `5s`.
-- `HTTP_EXPECT_TIMEOUT` (duration) — default: `1s`.
-- `HTTP_REQUEST_TIMEOUT` (duration) — default: `10s`.
-
-## Logging
-
-- Structured JSON logs via `log/slog` to stdout.
-- Built-in middlewares: panic recovery (returns 500 JSON) and request logging (method, path, status, duration, remote).
-
-## Testing
-
-There are currently no test files in this repository.
-
-TODO:
-- Add unit tests for converters, service, and runner.
-- Add integration tests for HTTP API.
-
-## Project structure
+## Project Structure
 
 ```
 .
-├── cmd/gnat/                   # Main entry point (binary)
-│   ├── main.go                 # App bootstrap & graceful shutdown
-│   └── welcome.go              # ASCII banner and endpoints list (TODO: port alignment)
+├── cmd/
+│   ├── gnat-backend/          # REST API server
+│   └── gnat-frontend/         # Web UI server
 ├── internal/
-│   ├── config/                 # Config loading from env
-│   ├── converters/             # Model -> DTO transformations
-│   ├── di/                     # Dependency injection container
-│   ├── models/                 # Domain models & statuses
-│   ├── runner/                 # Load generator, stats collector
-│   ├── server/                 # HTTP server, middlewares, DTOs
-│   ├── service/                # Business logic for setups/runs
-│   └── storage/memory/         # In-memory repository
-├── pkg/clients/http/           # Tuned HTTP client builder
-├── go.mod, go.sum              # Module definition
-├── LICENSE                     # MIT License
-└── README.md                   # This file
+│   ├── config/                # Environment-based configuration
+│   ├── converters/            # Model <-> DTO transformations
+│   ├── di/                    # Dependency injection container
+│   ├── models/                # Domain models (Setup, Run, Stats)
+│   ├── runner/                # Load generator and stats collector
+│   ├── server/                # HTTP handlers and middlewares
+│   ├── service/               # Business logic layer
+│   ├── storage/memory/        # In-memory repository
+│   └── web/                   # Frontend templates and handlers
+├── pkg/
+│   └── clients/http/          # Tuned HTTP client builder
+├── .golangci.yml              # Linter configuration
+├── Makefile                   # Build and development commands
+└── README.md
 ```
 
-## Development notes
+## Notes
 
-- Storage is in-memory: process restart clears setups and runs.
-- Run cancellation endpoint attempts to cancel active runs; completed runs cannot be cancelled.
-- The server uses Go's `http.ServeMux` with path patterns (Go 1.22+).
+- **In-Memory Storage**: Data is not persisted across restarts
+- **Go 1.22+ Required**: Uses `http.ServeMux` path patterns
+- **Graceful Shutdown**: Server handles SIGINT/SIGTERM signals
+
+## Roadmap
+
+- [ ] Web UI for real-time monitoring
+- [ ] Persistent storage backend
+- [ ] CLI for local runs and config generation
+- [ ] Distributed workers support
+- [ ] Export results to JSON/CSV
 
 ## License
 
-This project is licensed under the MIT License — see the `LICENSE` file for details.
-
-## Roadmap / TODOs
-
-- Web UI for real-time monitoring. (Not present in this repo.)
-- Persist setups and results (add storage backend).
-- CLI UX for local runs and config generation.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
