@@ -79,8 +79,9 @@ func getEnv(key, fallback string) string {
 func getEnvInt(key string, fallback int) int {
 	if value := os.Getenv(key); value != "" {
 		var i int
-		fmt.Sscanf(value, "%d", &i)
-		return i
+		if _, err := fmt.Sscanf(value, "%d", &i); err == nil {
+			return i
+		}
 	}
 	return fallback
 }

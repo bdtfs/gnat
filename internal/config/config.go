@@ -46,21 +46,6 @@ func MustLoad() Config {
 	}
 }
 
-func mustGetEnv[T int | bool | time.Duration](key string) T {
-	val := os.Getenv(key)
-	if val == "" {
-		panic("missing required environment variable: " + key)
-	}
-
-	var zero T
-	result, err := parse[T](val, zero)
-	if err != nil {
-		panic("failed to parse environment variable " + key + ": " + err.Error())
-	}
-
-	return result
-}
-
 func getEnv[T int | bool | time.Duration](key string, defaultVal T) T {
 	val := os.Getenv(key)
 	if val == "" {
