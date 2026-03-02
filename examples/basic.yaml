@@ -1,0 +1,29 @@
+# basic.yaml - Simple GNAT load test configuration
+#
+# Run with: gnat attack --config examples/basic.yaml
+
+name: "Basic API Load Test"
+
+variables:
+  base_url: "https://api.example.com"
+  token: "${API_TOKEN}"
+
+scenarios:
+  - name: "GET Users"
+    method: GET
+    url: "{{base_url}}/api/users"
+    headers:
+      Authorization: "Bearer {{token}}"
+      Accept: "application/json"
+    rps: 100
+    duration: 30s
+
+  - name: "POST User"
+    method: POST
+    url: "{{base_url}}/api/users"
+    headers:
+      Authorization: "Bearer {{token}}"
+      Content-Type: "application/json"
+    body: '{"name": "test-user", "email": "test@example.com"}'
+    rps: 50
+    duration: 30s
