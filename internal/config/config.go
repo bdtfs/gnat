@@ -9,16 +9,10 @@ import (
 type Config struct {
 	Application      *Application
 	HTTPClientConfig *HTTPClientConfig
-	Storage          *StorageConfig
 }
 
 type Application struct {
 	Port int
-}
-
-type StorageConfig struct {
-	Type       string // "memory" or "sqlite"
-	SQLitePath string // path to SQLite database file
 }
 
 type HTTPClientConfig struct {
@@ -37,10 +31,6 @@ func MustLoad() Config {
 	return Config{
 		Application: &Application{
 			Port: getEnv("APPLICATION_PORT", 8778),
-		},
-		Storage: &StorageConfig{
-			Type:       getEnv("STORAGE_TYPE", "memory"),
-			SQLitePath: getEnv("SQLITE_PATH", "gnat.db"),
 		},
 		HTTPClientConfig: &HTTPClientConfig{
 			MaxIdleConns:        getEnv("HTTP_MAX_IDLE_CONNS", 10000),
