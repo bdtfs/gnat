@@ -1,0 +1,45 @@
+# with-thresholds.yaml - GNAT load test with pass/fail thresholds
+#
+# Thresholds enable automated pass/fail decisions for CI/CD pipelines
+# and AI agent workflows. The test exits with code 1 if any threshold
+# is not met.
+#
+# Run with: gnat attack --config examples/with-thresholds.yaml
+
+name: "API Performance Validation"
+
+variables:
+  base_url: "https://api.example.com"
+  token: "${API_TOKEN}"
+
+scenarios:
+  - name: "Health Check"
+    method: GET
+    url: "{{base_url}}/health"
+    rps: 200
+    duration: 60s
+
+  - name: "Search Endpoint"
+    method: GET
+    url: "{{base_url}}/api/search?q=test"
+    headers:
+      Authorization: "Bearer {{token}}"
+      Accept: "application/json"
+    rps: 100
+    duration: 60s
+
+  - name: "Create Resource"
+    method: POST
+    url: "{{base_url}}/api/resources"
+    headers:
+      Authorization: "Bearer {{token}}"
+      Content-Type: "application/json"
+    body: '{"title": "load-test-resource", "priority": "low"}'
+    rps: 50
+    duration: 30s
+
+thresholds:
+  p95_latency_ms: 100
+  p99_latency_ms: 200
+  error_rate: 0.01
+  min_rps: 95
