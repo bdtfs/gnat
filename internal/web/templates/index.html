@@ -138,7 +138,15 @@
 
     function hideModal(e) {
         if (e.target.className === 'modal show' || e.target.className === 'modal-close') {
-            document.getElementById('run-detail-modal').classList.remove('show');
+            // Close any active WebSocket connections inside the modal.
+            const modal = document.getElementById('run-detail-modal');
+            const wsContainers = modal.querySelectorAll('[data-run-id]');
+            wsContainers.forEach(function(container) {
+                if (container._gnatWs && container._gnatWs.readyState <= WebSocket.OPEN) {
+                    container._gnatWs.close();
+                }
+            });
+            modal.classList.remove('show');
         }
     }
 

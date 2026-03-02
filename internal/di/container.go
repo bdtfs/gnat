@@ -12,6 +12,7 @@ import (
 	"github.com/bdtfs/gnat/internal/config"
 	"github.com/bdtfs/gnat/internal/runner"
 	"github.com/bdtfs/gnat/internal/server"
+	"github.com/bdtfs/gnat/internal/server/ws"
 	"github.com/bdtfs/gnat/internal/service"
 	repository "github.com/bdtfs/gnat/internal/storage/memory"
 	httpclient "github.com/bdtfs/gnat/pkg/clients/http"
@@ -35,6 +36,12 @@ type Container struct {
 
 	service     *service.Service
 	serviceOnce sync.Once
+
+	wsHub     *ws.Hub
+	wsHubOnce sync.Once
+
+	wsHandler     *ws.Handler
+	wsHandlerOnce sync.Once
 
 	server     *server.Server
 	serverOnce sync.Once
@@ -107,10 +114,24 @@ func (c *Container) GetService() *service.Service {
 	return c.service
 }
 
+func (c *Container) GetWSHub() *ws.Hub {
+	c.wsHubOnce.Do(func() {
+		c.wsHub = ws.NewHub(c.GetLogger())
+	})
+	return c.wsHub
+}
+
+func (c *Container) GetWSHandler() *ws.Handler {
+	c.wsHandlerOnce.Do(func() {
+		c.wsHandler = ws.NewHandler(c.GetWSHub(), c.GetService(), c.GetLogger())
+	})
+	return c.wsHandler
+}
+
 func (c *Container) GetServer() *server.Server {
 	c.serverOnce.Do(func() {
 		addr := net.JoinHostPort("", strconv.Itoa(c.GetConfig().Application.Port))
-		c.server = server.New(addr, c.GetService(), c.GetLogger())
+		c.server = server.New(addr, c.GetService(), c.GetWSHandler(), c.GetLogger())
 	})
 	return c.server
 }

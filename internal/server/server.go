@@ -11,21 +11,24 @@ import (
 	"github.com/bdtfs/gnat/internal/converters"
 	"github.com/bdtfs/gnat/internal/models"
 	"github.com/bdtfs/gnat/internal/server/dto"
+	"github.com/bdtfs/gnat/internal/server/ws"
 	"github.com/bdtfs/gnat/internal/service"
 )
 
 type Server struct {
-	addr    string
-	service *service.Service
-	logger  *slog.Logger
-	server  *http.Server
+	addr      string
+	service   *service.Service
+	wsHandler *ws.Handler
+	logger    *slog.Logger
+	server    *http.Server
 }
 
-func New(addr string, service *service.Service, logger *slog.Logger) *Server {
+func New(addr string, service *service.Service, wsHandler *ws.Handler, logger *slog.Logger) *Server {
 	s := &Server{
-		addr:    addr,
-		service: service,
-		logger:  logger,
+		addr:      addr,
+		service:   service,
+		wsHandler: wsHandler,
+		logger:    logger,
 	}
 
 	mux := http.NewServeMux()
@@ -40,6 +43,7 @@ func New(addr string, service *service.Service, logger *slog.Logger) *Server {
 	mux.HandleFunc("GET /api/runs/{id}", s.handleGetRun)
 	mux.HandleFunc("POST /api/runs/{id}/cancel", s.handleCancelRun)
 	mux.HandleFunc("GET /api/runs/{id}/stats", s.handleGetRunStats)
+	mux.HandleFunc("GET /api/runs/{id}/ws", s.wsHandler.HandleWebSocket)
 
 	handler := panicRecovery(logging(logger)(mux))
 

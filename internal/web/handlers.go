@@ -268,6 +268,9 @@ func (h *Handler) getRunStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Inject the backend WebSocket URL for real-time updates.
+	run["ws_base_url"] = h.apiBase
+
 	if err := h.tmpl.ExecuteTemplate(w, "run-detail.html", run); err != nil {
 		h.logger.Error("failed to render template", "error", err)
 		http.Error(w, "Failed to render run details", http.StatusInternalServerError)
