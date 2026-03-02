@@ -82,6 +82,26 @@ func StatsToDTO(m *models.Stats, startedAt, endedAt time.Time) *dto.Stats {
 		successRate = float64(m.SuccessRequests) / float64(m.TotalRequests)
 	}
 
+	m.TimeSeriesMu.RLock()
+	var timeSeries []dto.TimeSeriesPoint
+	if len(m.TimeSeries) > 0 {
+		timeSeries = make([]dto.TimeSeriesPoint, len(m.TimeSeries))
+		for i, p := range m.TimeSeries {
+			timeSeries[i] = dto.TimeSeriesPoint{
+				TimestampMs:  p.TimestampMs,
+				P50Latency:   p.P50Latency,
+				P90Latency:   p.P90Latency,
+				P95Latency:   p.P95Latency,
+				P99Latency:   p.P99Latency,
+				RPS:          p.RPS,
+				ErrorRate:    p.ErrorRate,
+				SuccessCount: p.SuccessCount,
+				FailedCount:  p.FailedCount,
+			}
+		}
+	}
+	m.TimeSeriesMu.RUnlock()
+
 	return &dto.Stats{
 		Total:       m.TotalRequests,
 		Success:     m.SuccessRequests,
@@ -98,6 +118,7 @@ func StatsToDTO(m *models.Stats, startedAt, endedAt time.Time) *dto.Stats {
 		BytesRead:   m.TotalBytesRead,
 		StatusCodes: statusCodes,
 		Errors:      errorsCopy,
+		TimeSeries:  timeSeries,
 	}
 }
 

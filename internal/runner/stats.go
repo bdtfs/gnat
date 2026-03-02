@@ -11,5 +11,7 @@ func NewStats() *models.Stats {
 		StatusCodes: make(map[int]*uint64),
 		Latencies:   make([]time.Duration, 0, 10000),
 		Errors:      make([]string, 0),
+		TimeSeries:  make([]models.TimeSeriesPoint, 0, 300),
+		StartedAt:   time.Now(),
 	}
 }

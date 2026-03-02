@@ -7,7 +7,7 @@ hx-swap="outerHTML"
 {{end}}>
 <div class="modal-header">
     <h2>Run Details</h2>
-    <button class="modal-close" onclick="hideModal(event)">×</button>
+    <button class="modal-close" onclick="hideModal(event)">x</button>
 </div>
 
 <div class="modal-body">
@@ -66,6 +66,26 @@ hx-swap="outerHTML"
             {{end}}
         </div>
 
+        {{if .stats.time_series}}
+        <div class="charts-section">
+            <h4>Time Series</h4>
+            <div class="chart-container-full">
+                <h5>Latency Over Time</h5>
+                <canvas id="latencyTimeChart-{{.id}}"></canvas>
+            </div>
+            <div class="charts-grid">
+                <div class="chart-container">
+                    <h5>RPS Over Time</h5>
+                    <canvas id="rpsTimeChart-{{.id}}"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h5>Error Rate Over Time</h5>
+                    <canvas id="errorRateTimeChart-{{.id}}"></canvas>
+                </div>
+            </div>
+        </div>
+        {{end}}
+
         <h4>Latency Percentiles</h4>
         <div class="latency-table">
             <div class="latency-row">
@@ -116,7 +136,10 @@ hx-swap="outerHTML"
             const chartIds = [
                 'latencyChart-' + runId,
                 'successChart-' + runId,
-                'statusCodesChart-' + runId
+                'statusCodesChart-' + runId,
+                'latencyTimeChart-' + runId,
+                'rpsTimeChart-' + runId,
+                'errorRateTimeChart-' + runId
             ];
 
             chartIds.forEach(id => {
@@ -140,6 +163,19 @@ hx-swap="outerHTML"
                     legend: {
                         labels: { color: '#e0e0e0' }
                     }
+                }
+            };
+
+            const timeSeriesScales = {
+                x: {
+                    grid: { color: '#252525' },
+                    ticks: { color: '#888' },
+                    title: { display: true, text: 'Time (s)', color: '#888' }
+                },
+                y: {
+                    beginAtZero: true,
+                    grid: { color: '#252525' },
+                    ticks: { color: '#888' }
                 }
             };
 
@@ -246,6 +282,137 @@ hx-swap="outerHTML"
                 }
             });
             {{end}}
+
+            // Time-series charts
+            if (stats.time_series && stats.time_series.length > 0) {
+                const ts = stats.time_series;
+                const timeLabels = ts.map(p => (p.timestamp_ms / 1000).toFixed(0));
+
+                // Latency over time chart
+                new Chart(document.getElementById('latencyTimeChart-' + runId), {
+                    type: 'line',
+                    data: {
+                        labels: timeLabels,
+                        datasets: [
+                            {
+                                label: 'P50',
+                                data: ts.map(p => p.p50_latency_ms),
+                                borderColor: '#00cc66',
+                                backgroundColor: 'rgba(0, 204, 102, 0.1)',
+                                borderWidth: 2,
+                                pointRadius: 0,
+                                tension: 0.3,
+                                fill: false
+                            },
+                            {
+                                label: 'P90',
+                                data: ts.map(p => p.p90_latency_ms),
+                                borderColor: '#00d4aa',
+                                backgroundColor: 'rgba(0, 212, 170, 0.1)',
+                                borderWidth: 2,
+                                pointRadius: 0,
+                                tension: 0.3,
+                                fill: false
+                            },
+                            {
+                                label: 'P95',
+                                data: ts.map(p => p.p95_latency_ms),
+                                borderColor: '#ffaa00',
+                                backgroundColor: 'rgba(255, 170, 0, 0.1)',
+                                borderWidth: 2,
+                                pointRadius: 0,
+                                tension: 0.3,
+                                fill: false
+                            },
+                            {
+                                label: 'P99',
+                                data: ts.map(p => p.p99_latency_ms),
+                                borderColor: '#ff4444',
+                                backgroundColor: 'rgba(255, 68, 68, 0.1)',
+                                borderWidth: 2,
+                                pointRadius: 0,
+                                tension: 0.3,
+                                fill: false
+                            }
+                        ]
+                    },
+                    options: {
+                        ...chartOptions,
+                        scales: {
+                            ...timeSeriesScales,
+                            y: {
+                                ...timeSeriesScales.y,
+                                title: { display: true, text: 'Latency (ms)', color: '#888' }
+                            }
+                        }
+                    }
+                });
+
+                // RPS over time chart
+                new Chart(document.getElementById('rpsTimeChart-' + runId), {
+                    type: 'line',
+                    data: {
+                        labels: timeLabels,
+                        datasets: [{
+                            label: 'RPS',
+                            data: ts.map(p => p.rps),
+                            borderColor: '#00d4aa',
+                            backgroundColor: 'rgba(0, 212, 170, 0.15)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            tension: 0.3,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        ...chartOptions,
+                        plugins: {
+                            ...chartOptions.plugins,
+                            legend: { display: false }
+                        },
+                        scales: {
+                            ...timeSeriesScales,
+                            y: {
+                                ...timeSeriesScales.y,
+                                title: { display: true, text: 'Requests/sec', color: '#888' }
+                            }
+                        }
+                    }
+                });
+
+                // Error rate over time chart
+                new Chart(document.getElementById('errorRateTimeChart-' + runId), {
+                    type: 'line',
+                    data: {
+                        labels: timeLabels,
+                        datasets: [{
+                            label: 'Error Rate',
+                            data: ts.map(p => (p.error_rate * 100).toFixed(2)),
+                            borderColor: '#ff4444',
+                            backgroundColor: 'rgba(255, 68, 68, 0.15)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            tension: 0.3,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        ...chartOptions,
+                        plugins: {
+                            ...chartOptions.plugins,
+                            legend: { display: false }
+                        },
+                        scales: {
+                            ...timeSeriesScales,
+                            y: {
+                                ...timeSeriesScales.y,
+                                title: { display: true, text: 'Error Rate (%)', color: '#888' },
+                                min: 0
+                            }
+                        }
+                    }
+                });
+            }
         })();
     </script>
     {{end}}

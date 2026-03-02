@@ -29,6 +29,18 @@ type Run struct {
 	Stats     *Stats     `json:"stats"`
 }
 
+type TimeSeriesPoint struct {
+	TimestampMs  int64   `json:"timestamp_ms"`
+	P50Latency   float64 `json:"p50_latency_ms"`
+	P90Latency   float64 `json:"p90_latency_ms"`
+	P95Latency   float64 `json:"p95_latency_ms"`
+	P99Latency   float64 `json:"p99_latency_ms"`
+	RPS          float64 `json:"rps"`
+	ErrorRate    float64 `json:"error_rate"`
+	SuccessCount int64   `json:"success_count"`
+	FailedCount  int64   `json:"failed_count"`
+}
+
 type Stats struct {
 	Total       uint64         `json:"total"`
 	Success     uint64         `json:"success"`
@@ -45,4 +57,5 @@ type Stats struct {
 	BytesRead   uint64         `json:"bytes_read"`
 	StatusCodes map[int]uint64 `json:"status_codes"`
 	Errors      []string       `json:"errors,omitempty"`
+	TimeSeries  []TimeSeriesPoint `json:"time_series,omitempty"`
 }

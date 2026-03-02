@@ -1,8 +1,10 @@
 package runner
 
 import (
+	"sort"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/bdtfs/gnat/internal/models"
 )
@@ -27,14 +29,91 @@ func (c *Collector) StartRunStatsProcessing(run *models.Run) chan<- *Result {
 	c.mu.Unlock()
 
 	ch := make(chan *Result, 100)
+	done := make(chan struct{})
 
 	go func() {
 		for r := range ch {
 			c.ProcessOneResult(stats, r)
 		}
+		close(done)
 	}()
 
+	go c.captureTimeSeries(stats, done)
+
 	return ch
+}
+
+// captureTimeSeries snapshots stats every second until done is closed.
+func (c *Collector) captureTimeSeries(s *models.Stats, done <-chan struct{}) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	var prevSuccess, prevFailed uint64
+
+	for {
+		select {
+		case <-done:
+			// Capture one final point.
+			c.snapshotTimeSeries(s, &prevSuccess, &prevFailed)
+			return
+		case <-ticker.C:
+			c.snapshotTimeSeries(s, &prevSuccess, &prevFailed)
+		}
+	}
+}
+
+func (c *Collector) snapshotTimeSeries(s *models.Stats, prevSuccess, prevFailed *uint64) {
+	nowMs := time.Since(s.StartedAt).Milliseconds()
+
+	curSuccess := atomic.LoadUint64(&s.SuccessRequests)
+	curFailed := atomic.LoadUint64(&s.FailedRequests)
+
+	intervalSuccess := int64(curSuccess - *prevSuccess)
+	intervalFailed := int64(curFailed - *prevFailed)
+	intervalTotal := intervalSuccess + intervalFailed
+
+	*prevSuccess = curSuccess
+	*prevFailed = curFailed
+
+	var errorRate float64
+	if intervalTotal > 0 {
+		errorRate = float64(intervalFailed) / float64(intervalTotal)
+	}
+
+	rps := float64(intervalTotal) // Per-second since ticker fires every second.
+
+	// Compute latency percentiles from the full latency slice.
+	s.LatenciesMu.Lock()
+	lat := make([]time.Duration, len(s.Latencies))
+	copy(lat, s.Latencies)
+	s.LatenciesMu.Unlock()
+
+	sort.Slice(lat, func(i, j int) bool { return lat[i] < lat[j] })
+
+	point := models.TimeSeriesPoint{
+		TimestampMs:  nowMs,
+		P50Latency:   tsPercentile(lat, 0.50),
+		P90Latency:   tsPercentile(lat, 0.90),
+		P95Latency:   tsPercentile(lat, 0.95),
+		P99Latency:   tsPercentile(lat, 0.99),
+		RPS:          rps,
+		ErrorRate:    errorRate,
+		SuccessCount: intervalSuccess,
+		FailedCount:  intervalFailed,
+	}
+
+	s.TimeSeriesMu.Lock()
+	s.TimeSeries = append(s.TimeSeries, point)
+	s.TimeSeriesMu.Unlock()
+}
+
+// tsPercentile computes a percentile from a sorted duration slice.
+func tsPercentile(sorted []time.Duration, p float64) float64 {
+	if len(sorted) == 0 {
+		return 0
+	}
+	idx := int(float64(len(sorted)-1) * p)
+	return float64(sorted[idx].Milliseconds())
 }
 
 func (c *Collector) ProcessOneResult(s *models.Stats, r *Result) {

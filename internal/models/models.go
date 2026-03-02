@@ -50,6 +50,18 @@ type Run struct {
 	Stats     *Stats
 }
 
+type TimeSeriesPoint struct {
+	TimestampMs  int64
+	P50Latency   float64
+	P90Latency   float64
+	P95Latency   float64
+	P99Latency   float64
+	RPS          float64
+	ErrorRate    float64
+	SuccessCount int64
+	FailedCount  int64
+}
+
 type Stats struct {
 	TotalRequests   uint64
 	SuccessRequests uint64
@@ -67,6 +79,11 @@ type Stats struct {
 
 	Errors   []string
 	ErrorsMu sync.RWMutex
+
+	TimeSeries   []TimeSeriesPoint
+	TimeSeriesMu sync.RWMutex
+
+	StartedAt time.Time
 }
 
 func NewSetup(name, description, method, url string, body []byte, headers map[string]string, rps int, duration time.Duration) *Setup {
