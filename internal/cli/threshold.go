@@ -11,15 +11,15 @@ import (
 // Thresholds defines pass/fail criteria for a load test run.
 // Each field is a pointer so that nil means "not configured" (skip this check).
 type Thresholds struct {
-	P50LatencyMs   *float64
-	P90LatencyMs   *float64
-	P95LatencyMs   *float64
-	P99LatencyMs   *float64
-	AvgLatencyMs   *float64
-	MaxLatencyMs   *float64
-	ErrorRate      *float64 // 0.0 to 1.0
-	MinRPS         *float64
-	MinSuccessRate *float64
+	P50LatencyMs   *float64 `yaml:"p50_latency_ms,omitempty" json:"p50_latency_ms,omitempty"`
+	P90LatencyMs   *float64 `yaml:"p90_latency_ms,omitempty" json:"p90_latency_ms,omitempty"`
+	P95LatencyMs   *float64 `yaml:"p95_latency_ms,omitempty" json:"p95_latency_ms,omitempty"`
+	P99LatencyMs   *float64 `yaml:"p99_latency_ms,omitempty" json:"p99_latency_ms,omitempty"`
+	AvgLatencyMs   *float64 `yaml:"avg_latency_ms,omitempty" json:"avg_latency_ms,omitempty"`
+	MaxLatencyMs   *float64 `yaml:"max_latency_ms,omitempty" json:"max_latency_ms,omitempty"`
+	ErrorRate      *float64 `yaml:"error_rate,omitempty" json:"error_rate,omitempty"`
+	MinRPS         *float64 `yaml:"min_rps,omitempty" json:"min_rps,omitempty"`
+	MinSuccessRate *float64 `yaml:"min_success_rate,omitempty" json:"min_success_rate,omitempty"`
 }
 
 // ThresholdResult records the outcome of a single threshold check.

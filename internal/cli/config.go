@@ -58,21 +58,6 @@ type Scenario struct {
 	Duration string `yaml:"duration" json:"duration"`
 }
 
-// Thresholds defines pass/fail criteria for test results.
-type Thresholds struct {
-	// P95LatencyMs is the maximum acceptable p95 latency in milliseconds.
-	P95LatencyMs *float64 `yaml:"p95_latency_ms,omitempty" json:"p95_latency_ms,omitempty"`
-
-	// P99LatencyMs is the maximum acceptable p99 latency in milliseconds.
-	P99LatencyMs *float64 `yaml:"p99_latency_ms,omitempty" json:"p99_latency_ms,omitempty"`
-
-	// ErrorRate is the maximum acceptable error rate (0.0 to 1.0).
-	ErrorRate *float64 `yaml:"error_rate,omitempty" json:"error_rate,omitempty"`
-
-	// MinRPS is the minimum acceptable requests per second actually achieved.
-	MinRPS *float64 `yaml:"min_rps,omitempty" json:"min_rps,omitempty"`
-}
-
 // validMethods is the set of valid HTTP methods.
 var validMethods = map[string]bool{
 	"GET":     true,
