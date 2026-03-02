@@ -9,18 +9,18 @@ import (
 	"time"
 
 	"github.com/bdtfs/gnat/internal/models"
-	repository "github.com/bdtfs/gnat/internal/storage/memory"
+	"github.com/bdtfs/gnat/internal/storage"
 )
 
 type Runner struct {
-	repo         *repository.Repository
+	repo         storage.Repository
 	logger       *slog.Logger
 	collector    *Collector
 	activeRuns   map[string]context.CancelFunc
 	activeRunsMu sync.RWMutex
 }
 
-func New(repo *repository.Repository, logger *slog.Logger, collector *Collector) *Runner {
+func New(repo storage.Repository, logger *slog.Logger, collector *Collector) *Runner {
 	return &Runner{
 		repo:       repo,
 		logger:     logger,

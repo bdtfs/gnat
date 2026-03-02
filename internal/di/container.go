@@ -2,6 +2,7 @@ package di
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -13,7 +14,9 @@ import (
 	"github.com/bdtfs/gnat/internal/runner"
 	"github.com/bdtfs/gnat/internal/server"
 	"github.com/bdtfs/gnat/internal/service"
-	repository "github.com/bdtfs/gnat/internal/storage/memory"
+	"github.com/bdtfs/gnat/internal/storage"
+	memorystorage "github.com/bdtfs/gnat/internal/storage/memory"
+	sqlitestorage "github.com/bdtfs/gnat/internal/storage/sqlite"
 	httpclient "github.com/bdtfs/gnat/pkg/clients/http"
 )
 
@@ -24,7 +27,7 @@ type Container struct {
 	httpClient     *http.Client
 	httpClientOnce sync.Once
 
-	repo     *repository.Repository
+	repo     storage.Repository
 	repoOnce sync.Once
 
 	collector     *runner.Collector
@@ -79,9 +82,18 @@ func (c *Container) GetLogger() *slog.Logger {
 	return c.logger
 }
 
-func (c *Container) GetRepository() *repository.Repository {
+func (c *Container) GetRepository() storage.Repository {
 	c.repoOnce.Do(func() {
-		c.repo = repository.New()
+		switch c.cfg.Storage.Type {
+		case "sqlite":
+			repo, err := sqlitestorage.New(c.cfg.Storage.SQLitePath)
+			if err != nil {
+				panic(fmt.Sprintf("failed to initialize sqlite storage: %v", err))
+			}
+			c.repo = repo
+		default:
+			c.repo = memorystorage.New()
+		}
 	})
 	return c.repo
 }
@@ -124,4 +136,8 @@ func (c *Container) GetContext() context.Context {
 }
 
 func (c *Container) Shutdown() {
+	// Close the SQLite database if it's in use.
+	if repo, ok := c.repo.(*sqlitestorage.Repository); ok {
+		repo.Close()
+	}
 }

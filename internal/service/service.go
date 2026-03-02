@@ -7,15 +7,15 @@ import (
 
 	"github.com/bdtfs/gnat/internal/models"
 	"github.com/bdtfs/gnat/internal/runner"
-	repository "github.com/bdtfs/gnat/internal/storage/memory"
+	"github.com/bdtfs/gnat/internal/storage"
 )
 
 type Service struct {
-	repo   *repository.Repository
+	repo   storage.Repository
 	runner *runner.Runner
 }
 
-func New(repo *repository.Repository, runner *runner.Runner) *Service {
+func New(repo storage.Repository, runner *runner.Runner) *Service {
 	return &Service{
 		repo:   repo,
 		runner: runner,
