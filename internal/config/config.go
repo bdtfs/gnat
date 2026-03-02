@@ -9,10 +9,16 @@ import (
 type Config struct {
 	Application      *Application
 	HTTPClientConfig *HTTPClientConfig
+	Storage          *StorageConfig
 }
 
 type Application struct {
 	Port int
+}
+
+type StorageConfig struct {
+	Type       string // "memory" or "sqlite"
+	SQLitePath string // path to SQLite database file
 }
 
 type HTTPClientConfig struct {
@@ -32,6 +38,10 @@ func MustLoad() Config {
 		Application: &Application{
 			Port: getEnv("APPLICATION_PORT", 8778),
 		},
+		Storage: &StorageConfig{
+			Type:       getEnv("STORAGE_TYPE", "memory"),
+			SQLitePath: getEnv("SQLITE_PATH", "gnat.db"),
+		},
 		HTTPClientConfig: &HTTPClientConfig{
 			MaxIdleConns:        getEnv("HTTP_MAX_IDLE_CONNS", 10000),
 			MaxIdleConnsPerHost: getEnv("HTTP_MAX_IDLE_CONNS_PER_HOST", 10000),
@@ -46,7 +56,7 @@ func MustLoad() Config {
 	}
 }
 
-func getEnv[T int | bool | time.Duration](key string, defaultVal T) T {
+func getEnv[T int | bool | string | time.Duration](key string, defaultVal T) T {
 	val := os.Getenv(key)
 	if val == "" {
 		return defaultVal
@@ -60,7 +70,7 @@ func getEnv[T int | bool | time.Duration](key string, defaultVal T) T {
 	return result
 }
 
-func parse[T int | bool | time.Duration](val string, defaultVal T) (T, error) {
+func parse[T int | bool | string | time.Duration](val string, defaultVal T) (T, error) {
 	var result any
 	var err error
 
@@ -69,6 +79,8 @@ func parse[T int | bool | time.Duration](val string, defaultVal T) (T, error) {
 		result, err = strconv.Atoi(val)
 	case bool:
 		result, err = strconv.ParseBool(val)
+	case string:
+		result = val
 	case time.Duration:
 		result, err = time.ParseDuration(val)
 	}
