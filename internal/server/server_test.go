@@ -13,6 +13,7 @@ import (
 	"github.com/bdtfs/gnat/internal/models"
 	"github.com/bdtfs/gnat/internal/runner"
 	"github.com/bdtfs/gnat/internal/server/dto"
+	"github.com/bdtfs/gnat/internal/server/ws"
 	"github.com/bdtfs/gnat/internal/service"
 	repository "github.com/bdtfs/gnat/internal/storage/memory"
 )
@@ -535,7 +536,9 @@ func newTestServer() *testServerHelper {
 	collector := runner.NewCollector()
 	r := runner.New(repo, logger, collector)
 	svc := service.New(repo, r)
-	srv := New(":0", svc, logger)
+	hub := ws.NewHub(logger)
+	wsHandler := ws.NewHandler(hub, svc, logger)
+	srv := New(":0", svc, wsHandler, logger)
 	return &testServerHelper{
 		Server: srv,
 		repo:   repo,

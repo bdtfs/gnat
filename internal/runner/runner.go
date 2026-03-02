@@ -12,12 +12,18 @@ import (
 	"github.com/bdtfs/gnat/internal/storage"
 )
 
+// RunCompleteFunc is called when a run finishes execution.
+// It receives the run ID and the final run status.
+type RunCompleteFunc func(runID string, status models.RunStatus)
+
 type Runner struct {
-	repo         storage.Repository
-	logger       *slog.Logger
-	collector    *Collector
-	activeRuns   map[string]context.CancelFunc
-	activeRunsMu sync.RWMutex
+	repo           storage.Repository
+	logger         *slog.Logger
+	collector      *Collector
+	activeRuns     map[string]context.CancelFunc
+	activeRunsMu   sync.RWMutex
+	onRunComplete  []RunCompleteFunc
+	onCompleteMu   sync.RWMutex
 }
 
 func New(repo storage.Repository, logger *slog.Logger, collector *Collector) *Runner {
@@ -26,6 +32,25 @@ func New(repo storage.Repository, logger *slog.Logger, collector *Collector) *Ru
 		logger:     logger,
 		collector:  collector,
 		activeRuns: make(map[string]context.CancelFunc),
+	}
+}
+
+// OnRunComplete registers a callback that will be invoked when any run
+// finishes execution (completed, failed, or cancelled).
+func (r *Runner) OnRunComplete(fn RunCompleteFunc) {
+	r.onCompleteMu.Lock()
+	defer r.onCompleteMu.Unlock()
+	r.onRunComplete = append(r.onRunComplete, fn)
+}
+
+// notifyRunComplete calls all registered completion callbacks.
+func (r *Runner) notifyRunComplete(runID string, status models.RunStatus) {
+	r.onCompleteMu.RLock()
+	callbacks := r.onRunComplete
+	r.onCompleteMu.RUnlock()
+
+	for _, fn := range callbacks {
+		fn(runID, status)
 	}
 }
 
@@ -98,6 +123,8 @@ func (r *Runner) execute(ctx context.Context, run *models.Run, setup *models.Set
 	if err = r.repo.UpdateRun(run); err != nil {
 		r.logger.Error("update run failed", "run_id", run.ID, "error", err)
 	}
+
+	r.notifyRunComplete(run.ID, run.Status)
 }
 
 func (r *Runner) CancelRun(runID string) error {

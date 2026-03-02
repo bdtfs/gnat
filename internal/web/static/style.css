@@ -374,6 +374,26 @@ header p {
 .status-failed { background: var(--danger); color: var(--bg); }
 .status-cancelled { background: var(--warning); color: var(--bg); }
 
+.ws-indicator {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #fff;
+    background: var(--danger);
+    padding: 0.15rem 0.5rem;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    vertical-align: middle;
+    margin-left: 0.5rem;
+    animation: ws-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes ws-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
 .empty-state {
     text-align: center;
     padding: 3rem 1rem;

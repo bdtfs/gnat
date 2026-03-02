@@ -1,4 +1,7 @@
-<div class="modal-content"
+<div class="modal-content" id="run-detail-{{.id}}"
+     data-run-id="{{.id}}"
+     data-run-status="{{.status}}"
+     data-ws-base="{{.ws_base_url}}"
      {{if or (eq .status "running") (eq .status "pending")}}
 hx-get="/runs/{{.id}}"
 hx-trigger="every 2s"
@@ -6,20 +9,22 @@ hx-target="this"
 hx-swap="outerHTML"
 {{end}}>
 <div class="modal-header">
-    <h2>Run Details</h2>
-    <button class="modal-close" onclick="hideModal(event)">x</button>
+    <h2>Run Details
+        <span id="ws-indicator-{{.id}}" class="ws-indicator" style="display:none;">LIVE</span>
+    </h2>
+    <button class="modal-close" onclick="hideModal(event)">&times;</button>
 </div>
 
 <div class="modal-body">
     <div class="detail-section">
         <h3>Status</h3>
-        <span class="status status-{{.status}}">{{.status}}</span>
+        <span id="run-status-{{.id}}" class="status status-{{.status}}">{{.status}}</span>
     </div>
 
     <div class="detail-section">
         <h3>Timing</h3>
         <p><strong>Started:</strong> {{formatTime .started_at}}</p>
-        {{if .elapsed}}<p><strong>Elapsed:</strong> {{formatDuration .elapsed}}</p>{{end}}
+        {{if .elapsed}}<p><strong>Elapsed:</strong> <span id="run-elapsed-{{.id}}">{{formatDuration .elapsed}}</span></p>{{end}}
         {{if .ended_at}}<p><strong>Ended:</strong> {{formatTime .ended_at}}</p>{{end}}
     </div>
 
@@ -30,19 +35,19 @@ hx-swap="outerHTML"
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="stat-label">Total Requests</div>
-                <div class="stat-value-lg">{{.stats.total}}</div>
+                <div class="stat-value-lg" id="stat-total-{{.id}}">{{.stats.total}}</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Success Rate</div>
-                <div class="stat-value-lg">{{formatFloat (mul .stats.success_rate 100)}}%</div>
+                <div class="stat-value-lg" id="stat-success-rate-{{.id}}">{{formatFloat (mul .stats.success_rate 100)}}%</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Current RPS</div>
-                <div class="stat-value-lg">{{formatFloat .stats.rps}}</div>
+                <div class="stat-value-lg" id="stat-rps-{{.id}}">{{formatFloat .stats.rps}}</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Bytes Read</div>
-                <div class="stat-value-lg">{{.stats.bytes_read}}</div>
+                <div class="stat-value-lg" id="stat-bytes-{{.id}}">{{.stats.bytes_read}}</div>
             </div>
         </div>
 
@@ -90,37 +95,37 @@ hx-swap="outerHTML"
         <div class="latency-table">
             <div class="latency-row">
                 <span>Min:</span>
-                <span>{{formatFloat .stats.min_latency_ms}}ms</span>
+                <span id="lat-min-{{.id}}">{{formatFloat .stats.min_latency_ms}}ms</span>
             </div>
             <div class="latency-row">
                 <span>Avg:</span>
-                <span>{{formatFloat .stats.avg_latency_ms}}ms</span>
+                <span id="lat-avg-{{.id}}">{{formatFloat .stats.avg_latency_ms}}ms</span>
             </div>
             <div class="latency-row">
                 <span>Max:</span>
-                <span>{{formatFloat .stats.max_latency_ms}}ms</span>
+                <span id="lat-max-{{.id}}">{{formatFloat .stats.max_latency_ms}}ms</span>
             </div>
             <div class="latency-row">
                 <span>P50:</span>
-                <span>{{formatFloat .stats.p50_latency_ms}}ms</span>
+                <span id="lat-p50-{{.id}}">{{formatFloat .stats.p50_latency_ms}}ms</span>
             </div>
             <div class="latency-row">
                 <span>P90:</span>
-                <span>{{formatFloat .stats.p90_latency_ms}}ms</span>
+                <span id="lat-p90-{{.id}}">{{formatFloat .stats.p90_latency_ms}}ms</span>
             </div>
             <div class="latency-row">
                 <span>P95:</span>
-                <span>{{formatFloat .stats.p95_latency_ms}}ms</span>
+                <span id="lat-p95-{{.id}}">{{formatFloat .stats.p95_latency_ms}}ms</span>
             </div>
             <div class="latency-row">
                 <span>P99:</span>
-                <span>{{formatFloat .stats.p99_latency_ms}}ms</span>
+                <span id="lat-p99-{{.id}}">{{formatFloat .stats.p99_latency_ms}}ms</span>
             </div>
         </div>
 
         {{if .stats.errors}}
         <h4>Errors</h4>
-        <div class="errors-list">
+        <div class="errors-list" id="errors-list-{{.id}}">
             {{range .stats.errors}}
             <div class="error-item">{{.}}</div>
             {{end}}
@@ -132,6 +137,10 @@ hx-swap="outerHTML"
         (function() {
             const runId = '{{.id}}';
             const stats = {{.stats | json}};
+            const runStatus = '{{.status}}';
+            const wsBaseUrl = '{{.ws_base_url}}';
+
+            // --- Chart Setup ---
 
             const chartIds = [
                 'latencyChart-' + runId,
@@ -179,7 +188,7 @@ hx-swap="outerHTML"
                 }
             };
 
-            new Chart(document.getElementById('latencyChart-' + runId), {
+            const latencyChart = new Chart(document.getElementById('latencyChart-' + runId), {
                 type: 'bar',
                 data: {
                     labels: ['Min', 'P50', 'P90', 'P95', 'P99', 'Max'],
@@ -224,7 +233,7 @@ hx-swap="outerHTML"
                 }
             });
 
-            new Chart(document.getElementById('successChart-' + runId), {
+            const successChart = new Chart(document.getElementById('successChart-' + runId), {
                 type: 'doughnut',
                 data: {
                     labels: ['Success', 'Failed'],
@@ -240,12 +249,13 @@ hx-swap="outerHTML"
                 }
             });
 
+            let statusCodesChart = null;
             {{if .stats.status_codes}}
             const statusCodes = {{.stats.status_codes | json}};
             const codes = Object.keys(statusCodes).sort();
             const counts = codes.map(code => statusCodes[code]);
 
-            new Chart(document.getElementById('statusCodesChart-' + runId), {
+            statusCodesChart = new Chart(document.getElementById('statusCodesChart-' + runId), {
                 type: 'bar',
                 data: {
                     labels: codes,
@@ -288,7 +298,6 @@ hx-swap="outerHTML"
                 const ts = stats.time_series;
                 const timeLabels = ts.map(p => (p.timestamp_ms / 1000).toFixed(0));
 
-                // Latency over time chart
                 new Chart(document.getElementById('latencyTimeChart-' + runId), {
                     type: 'line',
                     data: {
@@ -348,7 +357,6 @@ hx-swap="outerHTML"
                     }
                 });
 
-                // RPS over time chart
                 new Chart(document.getElementById('rpsTimeChart-' + runId), {
                     type: 'line',
                     data: {
@@ -380,7 +388,6 @@ hx-swap="outerHTML"
                     }
                 });
 
-                // Error rate over time chart
                 new Chart(document.getElementById('errorRateTimeChart-' + runId), {
                     type: 'line',
                     data: {
@@ -412,6 +419,152 @@ hx-swap="outerHTML"
                         }
                     }
                 });
+            }
+
+            // --- WebSocket Real-Time Updates ---
+
+            if ((runStatus === 'running' || runStatus === 'pending') && wsBaseUrl) {
+                connectWebSocket(runId, wsBaseUrl, latencyChart, successChart, statusCodesChart);
+            }
+
+            function connectWebSocket(runId, apiBase, latChart, sucChart, scChart) {
+                const wsUrl = apiBase.replace(/^http/, 'ws') + '/api/runs/' + runId + '/ws';
+                let ws;
+
+                try {
+                    ws = new WebSocket(wsUrl);
+                } catch (e) {
+                    console.warn('WebSocket connection failed, using polling fallback:', e);
+                    return;
+                }
+
+                const container = document.getElementById('run-detail-' + runId);
+                const indicator = document.getElementById('ws-indicator-' + runId);
+
+                if (container) {
+                    container._gnatWs = ws;
+                }
+
+                ws.onopen = function() {
+                    console.log('WebSocket connected for run:', runId);
+                    if (indicator) {
+                        indicator.style.display = 'inline-block';
+                    }
+                    if (container) {
+                        container.removeAttribute('hx-get');
+                        container.removeAttribute('hx-trigger');
+                        container.removeAttribute('hx-target');
+                        container.removeAttribute('hx-swap');
+                        if (typeof htmx !== 'undefined') {
+                            htmx.process(container);
+                        }
+                    }
+                };
+
+                ws.onmessage = function(event) {
+                    try {
+                        const msg = JSON.parse(event.data);
+                        const data = msg.data;
+                        if (!data || !data.stats) return;
+
+                        updateStatsDisplay(runId, data.stats);
+                        updateCharts(latChart, sucChart, scChart, data.stats);
+
+                        if (msg.type === 'completed') {
+                            const statusEl = document.getElementById('run-status-' + runId);
+                            if (statusEl) {
+                                statusEl.textContent = data.status;
+                                statusEl.className = 'status status-' + data.status;
+                            }
+                            if (indicator) indicator.style.display = 'none';
+                            ws.close();
+                        }
+                    } catch (e) {
+                        console.error('Failed to process WebSocket message:', e);
+                    }
+                };
+
+                ws.onerror = function(err) {
+                    console.warn('WebSocket error, falling back to polling:', err);
+                    enablePollingFallback(container, runId, indicator);
+                };
+
+                ws.onclose = function() {
+                    const statusEl = document.getElementById('run-status-' + runId);
+                    if (statusEl) {
+                        const currentStatus = statusEl.textContent.trim();
+                        if (currentStatus === 'running' || currentStatus === 'pending') {
+                            enablePollingFallback(container, runId, indicator);
+                        }
+                    }
+                    if (indicator) indicator.style.display = 'none';
+                };
+            }
+
+            function enablePollingFallback(container, runId, indicator) {
+                if (indicator) indicator.style.display = 'none';
+                if (container && !container.getAttribute('hx-get')) {
+                    container.setAttribute('hx-get', '/runs/' + runId);
+                    container.setAttribute('hx-trigger', 'every 2s');
+                    container.setAttribute('hx-target', 'this');
+                    container.setAttribute('hx-swap', 'outerHTML');
+                    if (typeof htmx !== 'undefined') {
+                        htmx.process(container);
+                    }
+                }
+            }
+
+            function formatFloat(f) {
+                if (f === undefined || f === null) return '0';
+                if (f < 1) return f.toFixed(3);
+                if (f < 10) return f.toFixed(2);
+                return f.toFixed(1);
+            }
+
+            function updateStatsDisplay(runId, s) {
+                const setEl = (id, val) => {
+                    const el = document.getElementById(id);
+                    if (el) el.textContent = val;
+                };
+                setEl('stat-total-' + runId, s.total || 0);
+                setEl('stat-success-rate-' + runId, formatFloat((s.success_rate || 0) * 100) + '%');
+                setEl('stat-rps-' + runId, formatFloat(s.rps || 0));
+                setEl('stat-bytes-' + runId, s.bytes_read || 0);
+                setEl('lat-min-' + runId, formatFloat(s.min_latency_ms || 0) + 'ms');
+                setEl('lat-avg-' + runId, formatFloat(s.avg_latency_ms || 0) + 'ms');
+                setEl('lat-max-' + runId, formatFloat(s.max_latency_ms || 0) + 'ms');
+                setEl('lat-p50-' + runId, formatFloat(s.p50_latency_ms || 0) + 'ms');
+                setEl('lat-p90-' + runId, formatFloat(s.p90_latency_ms || 0) + 'ms');
+                setEl('lat-p95-' + runId, formatFloat(s.p95_latency_ms || 0) + 'ms');
+                setEl('lat-p99-' + runId, formatFloat(s.p99_latency_ms || 0) + 'ms');
+            }
+
+            function updateCharts(latChart, sucChart, scChart, s) {
+                if (latChart) {
+                    latChart.data.datasets[0].data = [
+                        s.min_latency_ms || 0, s.p50_latency_ms || 0, s.p90_latency_ms || 0,
+                        s.p95_latency_ms || 0, s.p99_latency_ms || 0, s.max_latency_ms || 0
+                    ];
+                    latChart.update('none');
+                }
+                if (sucChart) {
+                    sucChart.data.datasets[0].data = [s.success || 0, s.failed || 0];
+                    sucChart.update('none');
+                }
+                if (scChart && s.status_codes) {
+                    const codes = Object.keys(s.status_codes).sort();
+                    scChart.data.labels = codes;
+                    scChart.data.datasets[0].data = codes.map(c => s.status_codes[c]);
+                    scChart.data.datasets[0].backgroundColor = codes.map(code => {
+                        const c = String(code);
+                        if (c.startsWith('2')) return '#00cc66';
+                        if (c.startsWith('3')) return '#00d4aa';
+                        if (c.startsWith('4')) return '#ffaa00';
+                        if (c.startsWith('5')) return '#ff4444';
+                        return '#888';
+                    });
+                    scChart.update('none');
+                }
             }
         })();
     </script>
