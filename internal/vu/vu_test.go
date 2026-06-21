@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/bdtfs/gnat/internal/checks"
@@ -89,7 +90,7 @@ func TestVU_ExtractionChaining(t *testing.T) {
 		},
 	}
 	sink := metrics.NewSink(100)
-	res := v.RunIteration(context.Background(), flow, sink, true)
+	res := v.RunIteration(context.Background(), flow, sink)
 	if !res.Completed {
 		t.Fatalf("iteration should complete, got %+v", res)
 	}
@@ -142,12 +143,51 @@ func TestVU_RequiredCheckAborts(t *testing.T) {
 			{Name: "never", Method: "GET", URLTmpl: srv.URL, Check: checks.DefaultSpec()},
 		},
 	}
-	res := v.RunIteration(context.Background(), Flow(flow), metrics.NewSink(100), true)
+	res := v.RunIteration(context.Background(), Flow(flow), metrics.NewSink(100))
 	if res.Completed {
 		t.Error("required failure must abort the iteration")
 	}
 	if len(res.Steps) != 1 {
 		t.Errorf("should stop after the aborting step, ran %d steps", len(res.Steps))
+	}
+}
+
+func TestVU_OnceStepNotRerunAfterAbort(t *testing.T) {
+	t.Parallel()
+
+	var onceHits int64
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/once":
+			atomic.AddInt64(&onceHits, 1)
+			w.WriteHeader(http.StatusOK)
+		default:
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+	defer srv.Close()
+
+	f := testFactory(t, map[string]string{"base": srv.URL})
+	v, err := f.New(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	flow := Flow{
+		Scenario: "once",
+		Steps: []Step{
+			{Name: "login", Method: "GET", URLTmpl: "{{base}}/once", Once: true, Check: checks.DefaultSpec()},
+			{Name: "work", Method: "GET", URLTmpl: "{{base}}/work", Check: checks.Spec{ExpectStatus: []int{200}, Required: true}},
+		},
+	}
+	sink := metrics.NewSink(100)
+	r1 := v.RunIteration(context.Background(), flow, sink)
+	if r1.Completed {
+		t.Fatal("iter 1 should abort on the required failing step")
+	}
+	v.RunIteration(context.Background(), flow, sink)
+
+	if got := atomic.LoadInt64(&onceHits); got != 1 {
+		t.Errorf("once-step must run exactly once across iterations, ran %d times", got)
 	}
 }
 

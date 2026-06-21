@@ -79,6 +79,7 @@ type VU struct {
 	Jar      http.CookieJar
 	Vars     map[string]string
 	Identity map[string]string
+	ranOnce  map[string]struct{}
 }
 
 func (f *Factory) New(identity map[string]string) (*VU, error) {
@@ -95,6 +96,7 @@ func (f *Factory) New(identity map[string]string) (*VU, error) {
 		Jar:      jar,
 		Vars:     vars,
 		Identity: identity,
+		ranOnce:  make(map[string]struct{}),
 	}, nil
 }
 
@@ -140,11 +142,14 @@ func (v *VU) Do(ctx context.Context, method, url, body string, headers map[strin
 	return resp.StatusCode, resp.Header, resp.Cookies(), bodyBytes, ms(ttfb), dur, nil
 }
 
-func (v *VU) RunIteration(ctx context.Context, f Flow, sink metrics.Sink, firstIter bool) IterResult {
+func (v *VU) RunIteration(ctx context.Context, f Flow, sink metrics.Sink) IterResult {
 	res := IterResult{Completed: true}
 	for _, st := range f.Steps {
-		if st.Once && !firstIter {
-			continue
+		if st.Once {
+			if _, done := v.ranOnce[st.Name]; done {
+				continue
+			}
+			v.ranOnce[st.Name] = struct{}{}
 		}
 		var sr StepResult
 		if st.Compute != nil {

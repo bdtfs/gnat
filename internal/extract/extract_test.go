@@ -236,6 +236,67 @@ func TestExtractAll(t *testing.T) {
 	}
 }
 
+func TestExtractAll_NonRequiredNotFoundPreservesPriorVar(t *testing.T) {
+	t.Parallel()
+
+	in := Input{
+		Status: 200,
+		Body:   []byte(`{"token":"cap-77"}`),
+	}
+
+	specs := []Spec{
+		{Var: "tok", Source: SourceJSON, Path: "token"},
+		{Var: "tok", Source: SourceJSON, Path: "absent"},
+	}
+
+	vars, errs := ExtractAll(specs, in)
+
+	if len(errs) != 0 {
+		t.Fatalf("expected no errors, got %d: %v", len(errs), errs)
+	}
+	if vars["tok"] != "cap-77" {
+		t.Errorf("non-required not-found extract clobbered prior var: got %q, want %q", vars["tok"], "cap-77")
+	}
+}
+
+func TestExtractAll_NonRequiredNotFoundOmitsVar(t *testing.T) {
+	t.Parallel()
+
+	in := Input{Status: 200, Body: []byte(`{}`)}
+
+	specs := []Spec{
+		{Var: "x", Source: SourceJSON, Path: "absent"},
+	}
+
+	vars, errs := ExtractAll(specs, in)
+
+	if len(errs) != 0 {
+		t.Fatalf("expected no errors, got %d: %v", len(errs), errs)
+	}
+	if _, ok := vars["x"]; ok {
+		t.Errorf("non-required not-found extract should not assign var, but vars[%q]=%q", "x", vars["x"])
+	}
+}
+
+func TestExtractAll_DefaultStillAssigns(t *testing.T) {
+	t.Parallel()
+
+	in := Input{Status: 200, Body: []byte(`{}`)}
+
+	specs := []Spec{
+		{Var: "x", Source: SourceJSON, Path: "absent", Default: "dflt"},
+	}
+
+	vars, errs := ExtractAll(specs, in)
+
+	if len(errs) != 0 {
+		t.Fatalf("expected no errors, got %d: %v", len(errs), errs)
+	}
+	if vars["x"] != "dflt" {
+		t.Errorf("default not assigned: got %q, want %q", vars["x"], "dflt")
+	}
+}
+
 func TestError_Error(t *testing.T) {
 	t.Parallel()
 

@@ -161,7 +161,11 @@ func runRampingVUs(ctx context.Context, p Plan, sink metrics.Sink) {
 	start := time.Now()
 	for {
 		elapsed := time.Since(start)
-		pool.adjust(vuCountAt(p.Cfg, elapsed))
+		want := vuCountAt(p.Cfg, elapsed)
+		if p.Cfg.MaxVUs > 0 && want > p.Cfg.MaxVUs {
+			want = p.Cfg.MaxVUs
+		}
+		pool.adjust(want)
 		if elapsed >= total {
 			break
 		}
@@ -186,7 +190,7 @@ func runConstantRPS(ctx context.Context, p Plan, sink metrics.Sink) {
 	runCtx, cancel := context.WithTimeout(ctx, dur)
 	defer cancel()
 
-	total := rps * int(dur/time.Second)
+	total := int(math.Round(float64(rps) * dur.Seconds()))
 	if total <= 0 {
 		return
 	}
@@ -215,25 +219,35 @@ func runConstantRPS(ctx context.Context, p Plan, sink metrics.Sink) {
 			if err != nil {
 				return
 			}
-			v.RunIteration(runCtx, p.Flow, sink, true)
+			v.RunIteration(runCtx, p.Flow, sink)
 		}()
 	}
 	wg.Wait()
 }
+
+var loopIterHook func()
 
 func loopVU(ctx context.Context, p Plan, sink metrics.Sink) {
 	v, err := p.Factory.New(p.Identity)
 	if err != nil {
 		return
 	}
-	first := true
 	for {
 		if ctx.Err() != nil {
 			return
 		}
-		r := v.RunIteration(ctx, p.Flow, sink, first)
-		if r.Completed {
-			first = false
+		if loopIterHook != nil {
+			loopIterHook()
+		}
+		r := v.RunIteration(ctx, p.Flow, sink)
+		if len(r.Steps) == 0 {
+			timer := time.NewTimer(50 * time.Millisecond)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return
+			case <-timer.C:
+			}
 		}
 	}
 }

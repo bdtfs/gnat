@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"errors"
+	"math"
 	"sync"
 	"testing"
 	"time"
@@ -281,6 +282,72 @@ func TestRecord_RingBounded(t *testing.T) {
 	}
 	if st.Latency.P95 > maxVal {
 		t.Errorf("p95 = %v, want <= %v", st.Latency.P95, maxVal)
+	}
+}
+
+func TestRecord_PercentilesRepresentative(t *testing.T) {
+	t.Parallel()
+
+	const ringSize = 1000
+	const total = 100000
+	snk := NewSink(ringSize)
+	for i := 0; i < total; i++ {
+		v := float64(i)
+		snk.Record(Sample{Scenario: "s", Step: "a", Status: 200, DurationMs: v, CheckPassed: true})
+	}
+
+	s := snk.(*sink)
+	s.mu.Lock()
+	b := s.buckets[stepKey{scenario: "s", step: "a"}]
+	latLen := len(b.latency.buf)
+	s.mu.Unlock()
+	if latLen > ringSize {
+		t.Fatalf("latency ring len = %d, want <= %d", latLen, ringSize)
+	}
+
+	snaps := snk.Snapshot()
+	st := findStep(snaps[0].Steps, "a")
+
+	tol := float64(total) * 0.10
+	checks := []struct {
+		name string
+		got  float64
+		want float64
+	}{
+		{name: "p50", got: st.Latency.P50, want: float64(total) * 0.50},
+		{name: "p90", got: st.Latency.P90, want: float64(total) * 0.90},
+		{name: "p95", got: st.Latency.P95, want: float64(total) * 0.95},
+		{name: "p99", got: st.Latency.P99, want: float64(total) * 0.99},
+	}
+	for _, c := range checks {
+		if math.Abs(c.got-c.want) > tol {
+			t.Errorf("%s = %v, want approx %v (tol %v)", c.name, c.got, c.want, tol)
+		}
+	}
+}
+
+func TestRecord_AggregateRepresentative(t *testing.T) {
+	t.Parallel()
+
+	const ringSize = 1000
+	const perStep = 50000
+	snk := NewSink(ringSize)
+	for i := 0; i < perStep; i++ {
+		v := float64(i)
+		snk.Record(Sample{Scenario: "s", Step: "a", Status: 200, DurationMs: v, CheckPassed: true})
+		snk.Record(Sample{Scenario: "s", Step: "b", Status: 200, DurationMs: v, CheckPassed: true})
+	}
+
+	snaps := snk.Snapshot()
+	agg := snaps[0].Aggregate
+	if len(agg.latencySamples) > 2*ringSize {
+		t.Fatalf("aggregate samples = %d, want <= %d", len(agg.latencySamples), 2*ringSize)
+	}
+
+	want := float64(perStep) * 0.50
+	tol := float64(perStep) * 0.10
+	if math.Abs(agg.Latency.P50-want) > tol {
+		t.Errorf("aggregate p50 = %v, want approx %v (tol %v)", agg.Latency.P50, want, tol)
 	}
 }
 

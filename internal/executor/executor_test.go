@@ -73,6 +73,110 @@ func TestRunConstantVUs(t *testing.T) {
 	}
 }
 
+func TestRunConstantRPS_SubSecondAndFractional(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		dur  time.Duration
+		want int64
+	}{
+		{"sub-second", 900 * time.Millisecond, 9},
+		{"fractional", 1500 * time.Millisecond, 15},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			var hits int64
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				atomic.AddInt64(&hits, 1)
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer srv.Close()
+
+			f := vu.NewFactory(httpclient.DefaultConfig(), nil)
+			plan := Plan{
+				Name:    "rps",
+				Flow:    vu.Flow{Scenario: "rps", Steps: []vu.Step{{Name: "hit", Method: "GET", URLTmpl: srv.URL, Check: checks.DefaultSpec()}}},
+				Cfg:     VUConfig{Type: "constant-rps", RPS: 10, Duration: c.dur},
+				Factory: f,
+			}
+			sink := metrics.NewSink(1000)
+			if err := RunPlans(context.Background(), []Plan{plan}, sink); err != nil {
+				t.Fatal(err)
+			}
+			got := atomic.LoadInt64(&hits)
+			if got < c.want-1 || got > c.want+1 {
+				t.Fatalf("%s@10rps issued %d requests, want ~%d", c.dur, got, c.want)
+			}
+		})
+	}
+}
+
+func TestRampingVUs_MaxVUsEnforced(t *testing.T) {
+	t.Parallel()
+	var active int64
+	var peak int64
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		cur := atomic.AddInt64(&active, 1)
+		for {
+			p := atomic.LoadInt64(&peak)
+			if cur <= p || atomic.CompareAndSwapInt64(&peak, p, cur) {
+				break
+			}
+		}
+		time.Sleep(20 * time.Millisecond)
+		atomic.AddInt64(&active, -1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	f := vu.NewFactory(httpclient.DefaultConfig(), nil)
+	plan := Plan{
+		Name:    "ramp",
+		Flow:    vu.Flow{Scenario: "ramp", Steps: []vu.Step{{Name: "hit", Method: "GET", URLTmpl: srv.URL, Check: checks.DefaultSpec()}}},
+		Cfg:     VUConfig{Type: "ramping-vus", MaxVUs: 100, Stages: []Stage{{Target: 500, Duration: 600 * time.Millisecond}}, GracefulStop: 100 * time.Millisecond},
+		Factory: f,
+	}
+	sink := metrics.NewSink(100000)
+	if err := RunPlans(context.Background(), []Plan{plan}, sink); err != nil {
+		t.Fatal(err)
+	}
+	if p := atomic.LoadInt64(&peak); p > 100 {
+		t.Fatalf("MaxVUs not enforced: peak concurrent in-flight %d exceeds 100", p)
+	}
+}
+
+func TestLoopVU_OnceOnlyFlowDoesNotSpin(t *testing.T) {
+	var hits int64
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt64(&hits, 1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	var iters int64
+	loopIterHook = func() { atomic.AddInt64(&iters, 1) }
+	defer func() { loopIterHook = nil }()
+
+	f := vu.NewFactory(httpclient.DefaultConfig(), nil)
+	plan := Plan{
+		Name:    "once-only",
+		Flow:    vu.Flow{Scenario: "once-only", Steps: []vu.Step{{Name: "setup", Method: "GET", URLTmpl: srv.URL, Once: true, Check: checks.DefaultSpec()}}},
+		Cfg:     VUConfig{Type: "constant-vus", VUs: 1, Duration: 400 * time.Millisecond},
+		Factory: f,
+	}
+	sink := metrics.NewSink(100000)
+	if err := RunPlans(context.Background(), []Plan{plan}, sink); err != nil {
+		t.Fatal(err)
+	}
+	if got := atomic.LoadInt64(&hits); got != 1 {
+		t.Fatalf("once-only flow should issue exactly 1 request; got %d", got)
+	}
+	if got := atomic.LoadInt64(&iters); got > 50 {
+		t.Fatalf("loopVU busy-spun: ran %d iterations in 400ms for a once-only flow (loop is not select-gated)", got)
+	}
+}
+
 func TestRampingVUsConcurrentScenarios(t *testing.T) {
 	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

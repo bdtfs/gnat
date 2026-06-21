@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -23,7 +24,7 @@ func (r *Runner) runLoop(
 		return fmt.Errorf("rps must be greater than 0")
 	}
 
-	total := setup.RPS * int(setup.Duration/time.Second)
+	total := int(math.Round(float64(setup.RPS) * setup.Duration.Seconds()))
 
 	client := httpclient.New()
 	ch := r.collector.StartRunStatsProcessing(run)

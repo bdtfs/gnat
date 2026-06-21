@@ -111,3 +111,174 @@ func TestValidateRejectsBad(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateRampingVUsRejectsZeroLoad(t *testing.T) {
+	t.Parallel()
+	cases := map[string]string{
+		"all-zero targets": `
+name: x
+scenarios:
+  - name: s
+    executor:
+      type: ramping-vus
+      stages:
+        - { target: 0, duration: 10s }
+        - { target: 0, duration: 5s }
+    steps:
+      - { name: a, url: http://x }
+`,
+		"zero total duration": `
+name: x
+scenarios:
+  - name: s
+    executor:
+      type: ramping-vus
+      stages:
+        - { target: 5, duration: 0s }
+    steps:
+      - { name: a, url: http://x }
+`,
+		"negative target": `
+name: x
+scenarios:
+  - name: s
+    executor:
+      type: ramping-vus
+      stages:
+        - { target: -1, duration: 10s }
+    steps:
+      - { name: a, url: http://x }
+`,
+		"negative start_vus": `
+name: x
+scenarios:
+  - name: s
+    executor:
+      type: ramping-vus
+      start_vus: -1
+      stages:
+        - { target: 5, duration: 10s }
+    steps:
+      - { name: a, url: http://x }
+`,
+		"non-positive max_vus": `
+name: x
+scenarios:
+  - name: s
+    executor:
+      type: ramping-vus
+      max_vus: -1
+      stages:
+        - { target: 5, duration: 10s }
+    steps:
+      - { name: a, url: http://x }
+`,
+	}
+	for name, body := range cases {
+		if _, err := Load(writeTemp(t, body)); err == nil {
+			t.Errorf("%s: expected validation error", name)
+		}
+	}
+}
+
+func TestValidateRampingVUsAcceptsGood(t *testing.T) {
+	t.Parallel()
+	good := `
+name: x
+scenarios:
+  - name: s
+    executor:
+      type: ramping-vus
+      start_vus: 1
+      max_vus: 10
+      stages:
+        - { target: 5, duration: 10s }
+        - { target: 0, duration: 5s }
+    steps:
+      - { name: a, url: http://x }
+`
+	if _, err := Load(writeTemp(t, good)); err != nil {
+		t.Fatalf("valid ramping-vus config rejected: %v", err)
+	}
+}
+
+func TestValidateRejectsWeight(t *testing.T) {
+	t.Parallel()
+	body := `
+name: x
+scenarios:
+  - name: s
+    weight: 3
+    executor:
+      type: constant-vus
+      vus: 1
+      duration: 5s
+    steps:
+      - { name: a, url: http://x }
+`
+	if _, err := Load(writeTemp(t, body)); err == nil {
+		t.Fatal("expected error for unsupported weight")
+	}
+}
+
+func TestValidateExpectStatusRange(t *testing.T) {
+	t.Parallel()
+	bad := map[string]string{
+		"one element": `
+name: x
+scenarios:
+  - name: s
+    executor: { type: constant-vus, vus: 1, duration: 5s }
+    steps:
+      - { name: a, url: http://x, check: { expect_status_range: [200] } }
+`,
+		"three elements": `
+name: x
+scenarios:
+  - name: s
+    executor: { type: constant-vus, vus: 1, duration: 5s }
+    steps:
+      - { name: a, url: http://x, check: { expect_status_range: [200, 299, 300] } }
+`,
+		"reversed bounds": `
+name: x
+scenarios:
+  - name: s
+    executor: { type: constant-vus, vus: 1, duration: 5s }
+    steps:
+      - { name: a, url: http://x, check: { expect_status_range: [300, 200] } }
+`,
+		"zero lower bound": `
+name: x
+scenarios:
+  - name: s
+    executor: { type: constant-vus, vus: 1, duration: 5s }
+    steps:
+      - { name: a, url: http://x, check: { expect_status_range: [0, 299] } }
+`,
+		"on compute step": `
+name: x
+scenarios:
+  - name: s
+    executor: { type: constant-vus, vus: 1, duration: 5s }
+    steps:
+      - { name: a, compute: { type: sha256-leading-zero-bits, out: nonce }, check: { expect_status_range: [200] } }
+`,
+	}
+	for name, body := range bad {
+		if _, err := Load(writeTemp(t, body)); err == nil {
+			t.Errorf("%s: expected validation error", name)
+		}
+	}
+	good := `
+name: x
+scenarios:
+  - name: s
+    executor: { type: constant-vus, vus: 1, duration: 5s }
+    steps:
+      - { name: a, url: http://x, check: { expect_status_range: [200, 299] } }
+`
+	if _, err := Load(writeTemp(t, good)); err != nil {
+		t.Fatalf("valid expect_status_range rejected: %v", err)
+	}
+}

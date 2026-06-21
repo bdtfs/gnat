@@ -38,9 +38,10 @@ type CheckSummary struct {
 }
 
 type RunScenario struct {
-	Name   string       `json:"name"`
-	Steps  []StepReport `json:"steps"`
-	Passed bool         `json:"passed"`
+	Name       string                `json:"name"`
+	Steps      []StepReport          `json:"steps"`
+	Thresholds []cli.ThresholdResult `json:"thresholds,omitempty"`
+	Passed     bool                  `json:"passed"`
 }
 
 type RunReport struct {
@@ -147,25 +148,7 @@ func buildReport(cfg *scenario.Config, snap []metrics.ScenarioStats, start, end 
 		Passed:      true,
 	}
 	for _, sc := range snap {
-		sr := RunScenario{Name: sc.Scenario, Passed: true}
-		for _, step := range sc.Steps {
-			stepRep := StepReport{
-				Name:   step.Step,
-				Stats:  converters.StatsToDTO(step.ToModelsStats(), start, end),
-				Checks: CheckSummary{Total: step.Count, Failed: step.Failed, ByReason: step.CheckFailReasons},
-				Passed: step.Failed == 0,
-			}
-			sr.Steps = append(sr.Steps, stepRep)
-		}
-		if cfg.Thresholds != nil && sc.Aggregate != nil {
-			eval := cli.Evaluate(*cfg.Thresholds, sc.Aggregate.ToModelsStats(), elapsed)
-			if len(sr.Steps) > 0 {
-				sr.Steps[len(sr.Steps)-1].Thresholds = eval.Results
-			}
-			if !eval.Passed {
-				sr.Passed = false
-			}
-		}
+		sr := buildScenarioReport(cfg, sc, start, end, elapsed)
 		if !sr.Passed {
 			report.Passed = false
 		}
@@ -174,11 +157,53 @@ func buildReport(cfg *scenario.Config, snap []metrics.ScenarioStats, start, end 
 	return report
 }
 
+func buildScenarioReport(cfg *scenario.Config, sc metrics.ScenarioStats, start, end time.Time, elapsed time.Duration) RunScenario {
+	sr := RunScenario{Name: sc.Scenario, Passed: true}
+	for _, step := range sc.Steps {
+		sr.Steps = append(sr.Steps, buildStepReport(step, start, end))
+	}
+	if cfg.Thresholds != nil && sc.Aggregate != nil {
+		eval := cli.Evaluate(*cfg.Thresholds, sc.Aggregate.ToModelsStats(), elapsed)
+		sr.Thresholds = eval.Results
+		if !eval.Passed {
+			sr.Passed = false
+		}
+		return sr
+	}
+	for _, stepRep := range sr.Steps {
+		if !stepRep.Passed {
+			sr.Passed = false
+		}
+	}
+	return sr
+}
+
+func buildStepReport(step *metrics.StepStats, start, end time.Time) StepReport {
+	stepStats := converters.StatsToDTO(step.ToModelsStats(), start, end)
+	if stepStats != nil {
+		stepStats.TTFBP50Latency = step.TTFB.P50
+		stepStats.TTFBP95Latency = step.TTFB.P95
+		stepStats.TTFBP99Latency = step.TTFB.P99
+	}
+	return StepReport{
+		Name:   step.Step,
+		Stats:  stepStats,
+		Checks: CheckSummary{Total: step.Count, Failed: step.Failed, ByReason: step.CheckFailReasons},
+		Passed: step.Failed == 0,
+	}
+}
+
 func printRunReport(r RunReport) {
 	for _, sc := range r.Scenarios {
 		fmt.Printf("\n══ scenario: %s ══\n", sc.Name)
 		for _, st := range sc.Steps {
 			printStepReport(st)
+		}
+		if len(sc.Thresholds) > 0 {
+			fmt.Printf("  thresholds:\n")
+			for _, t := range sc.Thresholds {
+				fmt.Printf("    [%s] %s target=%.2f actual=%.2f\n", passFailMark(t.Passed), t.Name, t.Target, t.Actual)
+			}
 		}
 	}
 	fmt.Printf("\n=> %s\n", passFailMark(r.Passed))
@@ -189,6 +214,7 @@ func printStepReport(st StepReport) {
 	if s := st.Stats; s != nil {
 		fmt.Printf("      reqs=%d ok=%d fail=%d  rps=%.1f  ms: p50=%.1f p95=%.1f p99=%.1f max=%.1f  bytes=%d\n",
 			s.Total, s.Success, s.Failed, s.RPS, s.P50Latency, s.P95Latency, s.P99Latency, s.MaxLatency, s.BytesRead)
+		fmt.Printf("      ttfb ms: p50=%.1f p95=%.1f p99=%.1f\n", s.TTFBP50Latency, s.TTFBP95Latency, s.TTFBP99Latency)
 		printStatusCodes(s, "      status:")
 	}
 	if st.Checks.Failed > 0 && len(st.Checks.ByReason) > 0 {

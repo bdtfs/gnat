@@ -158,6 +158,9 @@ func (c *Config) Validate() error {
 		if s.Name == "" {
 			return fmt.Errorf("%s: name is required", label)
 		}
+		if s.Weight != 0 {
+			return fmt.Errorf("%s: weight is unsupported; each scenario carries its own independent load", label)
+		}
 		if s.IsLegacy() {
 			if err := validateLegacy(s, label); err != nil {
 				return err
@@ -216,10 +219,25 @@ func validateStep(st *Step, i int, label string) error {
 		if st.Method == "" {
 			st.Method = "GET"
 		}
+	} else if st.Compute.Out == "" {
+		return fmt.Errorf("%s/%s: compute.out is required", label, st.Name)
+	}
+	return validateCheck(st.Check, label, st.Name)
+}
+
+func validateCheck(c *Check, label, step string) error {
+	if c == nil || len(c.ExpectStatusRange) == 0 {
 		return nil
 	}
-	if st.Compute.Out == "" {
-		return fmt.Errorf("%s/%s: compute.out is required", label, st.Name)
+	if len(c.ExpectStatusRange) != 2 {
+		return fmt.Errorf("%s/%s: expect_status_range must have exactly 2 elements", label, step)
+	}
+	lo, hi := c.ExpectStatusRange[0], c.ExpectStatusRange[1]
+	if lo <= 0 || hi <= 0 {
+		return fmt.Errorf("%s/%s: expect_status_range bounds must be positive", label, step)
+	}
+	if lo > hi {
+		return fmt.Errorf("%s/%s: expect_status_range lower bound must not exceed upper bound", label, step)
 	}
 	return nil
 }
@@ -261,12 +279,42 @@ func validateRampingVUs(e *Executor, label string) error {
 	if len(e.Stages) == 0 {
 		return fmt.Errorf("%s: ramping-vus requires stages", label)
 	}
-	for j, st := range e.Stages {
-		if _, err := time.ParseDuration(st.Duration); err != nil {
-			return fmt.Errorf("%s: stage[%d] invalid duration: %w", label, j, err)
-		}
+	if e.StartVUs < 0 {
+		return fmt.Errorf("%s: executor start_vus must not be negative", label)
+	}
+	if e.MaxVUs != 0 && e.MaxVUs <= 0 {
+		return fmt.Errorf("%s: executor max_vus must be positive when set", label)
+	}
+	total, maxTarget, err := scanStages(e.Stages, label)
+	if err != nil {
+		return err
+	}
+	if total <= 0 {
+		return fmt.Errorf("%s: ramping-vus total stage duration must be positive", label)
+	}
+	if maxTarget <= 0 {
+		return fmt.Errorf("%s: ramping-vus requires at least one stage with target > 0", label)
 	}
 	return nil
+}
+
+func scanStages(stages []StageCfg, label string) (time.Duration, int, error) {
+	var total time.Duration
+	maxTarget := 0
+	for j, st := range stages {
+		d, err := time.ParseDuration(st.Duration)
+		if err != nil {
+			return 0, 0, fmt.Errorf("%s: stage[%d] invalid duration: %w", label, j, err)
+		}
+		if st.Target < 0 {
+			return 0, 0, fmt.Errorf("%s: stage[%d] target must not be negative", label, j)
+		}
+		total += d
+		if st.Target > maxTarget {
+			maxTarget = st.Target
+		}
+	}
+	return total, maxTarget, nil
 }
 
 func (s *Scenario) Expand() (Expanded, error) {

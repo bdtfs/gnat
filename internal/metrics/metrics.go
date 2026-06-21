@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"math/rand"
 	"sort"
 	"sync"
 	"time"
@@ -9,6 +10,17 @@ import (
 )
 
 const defaultRingSize = 10000
+
+var (
+	sampleRand   = rand.New(rand.NewSource(time.Now().UnixNano()))
+	sampleRandMu sync.Mutex
+)
+
+func sampleIndex(n int64) int64 {
+	sampleRandMu.Lock()
+	defer sampleRandMu.Unlock()
+	return sampleRand.Int63n(n)
+}
 
 type Sample struct {
 	Scenario    string
@@ -53,10 +65,9 @@ type Sink interface {
 }
 
 type ring struct {
-	buf  []float64
-	size int
-	next int
-	full bool
+	buf   []float64
+	size  int
+	count int64
 }
 
 func newRing(size int) *ring {
@@ -64,15 +75,14 @@ func newRing(size int) *ring {
 }
 
 func (r *ring) add(v float64) {
+	r.count++
 	if len(r.buf) < r.size {
 		r.buf = append(r.buf, v)
 		return
 	}
-	r.buf[r.next] = v
-	r.next++
-	if r.next == r.size {
-		r.next = 0
-		r.full = true
+	j := sampleIndex(r.count)
+	if j < int64(r.size) {
+		r.buf[j] = v
 	}
 }
 

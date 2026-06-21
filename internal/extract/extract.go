@@ -46,33 +46,41 @@ func (e *Error) Error() string {
 }
 
 func Extract(spec Spec, in Input) (string, error) {
+	value, _, err := extract(spec, in)
+	return value, err
+}
+
+func extract(spec Spec, in Input) (string, bool, error) {
 	value, found, err := resolve(spec, in)
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 	if !found || value == "" {
 		if spec.Default != "" {
-			return spec.Default, nil
+			return spec.Default, true, nil
 		}
 		if spec.Required {
-			return "", &Error{Var: spec.Var, Source: spec.Source, Path: spec.Path, Reason: "value not found"}
+			return "", false, &Error{Var: spec.Var, Source: spec.Source, Path: spec.Path, Reason: "value not found"}
 		}
-		return "", nil
+		return "", false, nil
 	}
-	return value, nil
+	return value, true, nil
 }
 
 func ExtractAll(specs []Spec, in Input) (map[string]string, []Error) {
 	vars := make(map[string]string)
 	var errs []Error
 	for _, spec := range specs {
-		value, err := Extract(spec, in)
+		value, assign, err := extract(spec, in)
 		if err != nil {
 			if ee, ok := err.(*Error); ok {
 				errs = append(errs, *ee)
 			} else {
 				errs = append(errs, Error{Var: spec.Var, Source: spec.Source, Path: spec.Path, Reason: err.Error()})
 			}
+			continue
+		}
+		if !assign {
 			continue
 		}
 		vars[spec.Var] = value
