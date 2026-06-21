@@ -25,14 +25,14 @@ build:
 	@echo "Build complete!"
 
 run-backend:
-	@APPLICATION_PORT=8778 go run ./cmd/gnat
+	@APPLICATION_PORT=8778 go run ./cmd/gnat serve
 
 run-frontend:
 	@FRONTEND_PORT=3000 API_URL=http://localhost:8778 go run ./cmd/gnat-frontend
 
 run-all:
 	@echo "Starting backend on :8778 and frontend on :3000..."
-	@APPLICATION_PORT=8778 go run ./cmd/gnat & \
+	@APPLICATION_PORT=8778 go run ./cmd/gnat serve & \
 	sleep 1 && \
 	FRONTEND_PORT=3000 API_URL=http://localhost:8778 go run ./cmd/gnat-frontend
 

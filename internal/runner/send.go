@@ -17,7 +17,7 @@ type Result struct {
 	Timestamp  time.Time
 }
 
-func send(ctx context.Context, client *http.Client, method, url string, body []byte) *Result {
+func send(ctx context.Context, client *http.Client, method, url string, body []byte, headers map[string]string) *Result {
 	res := &Result{Timestamp: time.Now()}
 
 	var reqBody io.Reader
@@ -33,6 +33,12 @@ func send(ctx context.Context, client *http.Client, method, url string, body []b
 
 	if len(body) > 0 {
 		req.Header.Set("Content-Type", "application/octet-stream")
+	}
+
+	// Configured headers are applied last so they override defaults such as
+	// the body Content-Type above and Go's automatic User-Agent.
+	for k, v := range headers {
+		req.Header.Set(k, v)
 	}
 
 	start := time.Now()

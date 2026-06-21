@@ -53,7 +53,7 @@ func (r *Runner) runLoop(
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			ch <- send(loopCtx, client, setup.Method, setup.URL, setup.Body)
+			ch <- send(loopCtx, client, setup.Method, setup.URL, setup.Body, setup.Headers)
 		}()
 	}
 

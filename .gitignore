@@ -36,3 +36,6 @@ MVP_PLAN.md
 .claude
 .specify
 specs
+
+bin/
+.DS_Store
