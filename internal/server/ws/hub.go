@@ -73,6 +73,11 @@ func (h *Hub) Broadcast(runID string, message []byte) {
 	}
 	h.mu.RUnlock()
 
+	failed := h.sendToTargets(runID, targets, message)
+	h.dropConns(runID, failed)
+}
+
+func (h *Hub) sendToTargets(runID string, targets []*websocket.Conn, message []byte) []*websocket.Conn {
 	var failed []*websocket.Conn
 	for _, conn := range targets {
 		if err := conn.WriteMessage(websocket.TextMessage, message); err != nil {
@@ -80,21 +85,25 @@ func (h *Hub) Broadcast(runID string, message []byte) {
 			failed = append(failed, conn)
 		}
 	}
+	return failed
+}
 
-	// Clean up failed connections.
-	if len(failed) > 0 {
-		h.mu.Lock()
-		for _, conn := range failed {
-			if connsMap, exists := h.clients[runID]; exists {
-				delete(connsMap, conn)
-				if len(connsMap) == 0 {
-					delete(h.clients, runID)
-				}
-			}
-			_ = conn.Close()
-		}
-		h.mu.Unlock()
+func (h *Hub) dropConns(runID string, failed []*websocket.Conn) {
+	if len(failed) == 0 {
+		return
 	}
+
+	h.mu.Lock()
+	for _, conn := range failed {
+		if connsMap, exists := h.clients[runID]; exists {
+			delete(connsMap, conn)
+			if len(connsMap) == 0 {
+				delete(h.clients, runID)
+			}
+		}
+		_ = conn.Close()
+	}
+	h.mu.Unlock()
 }
 
 // CleanupRun removes all connections for a given run ID and closes them.

@@ -212,45 +212,9 @@ func validateConfig(cfg *Config) error {
 		return fmt.Errorf("at least one scenario is required")
 	}
 
-	for i, s := range cfg.Scenarios {
-		label := s.Name
-		if label == "" {
-			label = fmt.Sprintf("scenario[%d]", i)
-		}
-
-		if s.Name == "" {
-			return fmt.Errorf("%s: name is required", label)
-		}
-
-		if s.Method == "" {
-			return fmt.Errorf("%s: method is required", label)
-		}
-
-		upperMethod := strings.ToUpper(s.Method)
-		if !validMethods[upperMethod] {
-			return fmt.Errorf("%s: invalid method %q (must be one of GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS)", label, s.Method)
-		}
-		// Normalize method to uppercase.
-		cfg.Scenarios[i].Method = upperMethod
-
-		if s.URL == "" {
-			return fmt.Errorf("%s: url is required", label)
-		}
-
-		if s.RPS <= 0 {
-			return fmt.Errorf("%s: rps must be a positive integer, got %d", label, s.RPS)
-		}
-
-		if s.Duration == "" {
-			return fmt.Errorf("%s: duration is required", label)
-		}
-
-		d, err := time.ParseDuration(s.Duration)
-		if err != nil {
-			return fmt.Errorf("%s: invalid duration %q: %w", label, s.Duration, err)
-		}
-		if d <= 0 {
-			return fmt.Errorf("%s: duration must be positive, got %s", label, s.Duration)
+	for i := range cfg.Scenarios {
+		if err := validateScenario(&cfg.Scenarios[i], i); err != nil {
+			return err
 		}
 	}
 
@@ -258,6 +222,49 @@ func validateConfig(cfg *Config) error {
 		if err := validateThresholds(cfg.Thresholds); err != nil {
 			return fmt.Errorf("thresholds: %w", err)
 		}
+	}
+
+	return nil
+}
+
+func validateScenario(s *Scenario, i int) error {
+	label := s.Name
+	if label == "" {
+		label = fmt.Sprintf("scenario[%d]", i)
+	}
+
+	if s.Name == "" {
+		return fmt.Errorf("%s: name is required", label)
+	}
+
+	if s.Method == "" {
+		return fmt.Errorf("%s: method is required", label)
+	}
+
+	upperMethod := strings.ToUpper(s.Method)
+	if !validMethods[upperMethod] {
+		return fmt.Errorf("%s: invalid method %q (must be one of GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS)", label, s.Method)
+	}
+	s.Method = upperMethod
+
+	if s.URL == "" {
+		return fmt.Errorf("%s: url is required", label)
+	}
+
+	if s.RPS <= 0 {
+		return fmt.Errorf("%s: rps must be a positive integer, got %d", label, s.RPS)
+	}
+
+	if s.Duration == "" {
+		return fmt.Errorf("%s: duration is required", label)
+	}
+
+	d, err := time.ParseDuration(s.Duration)
+	if err != nil {
+		return fmt.Errorf("%s: invalid duration %q: %w", label, s.Duration, err)
+	}
+	if d <= 0 {
+		return fmt.Errorf("%s: duration must be positive, got %s", label, s.Duration)
 	}
 
 	return nil

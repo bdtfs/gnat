@@ -82,6 +82,66 @@ func runConstantVUs(ctx context.Context, p Plan, sink metrics.Sink) {
 	wg.Wait()
 }
 
+type vuPool struct {
+	mu      sync.Mutex
+	cancels []context.CancelFunc
+	wg      sync.WaitGroup
+	runCtx  context.Context
+	p       Plan
+	sink    metrics.Sink
+}
+
+func (pool *vuPool) spawn() {
+	vctx, vcancel := context.WithCancel(pool.runCtx)
+	pool.mu.Lock()
+	pool.cancels = append(pool.cancels, vcancel)
+	pool.mu.Unlock()
+	pool.wg.Add(1)
+	go func() {
+		defer pool.wg.Done()
+		loopVU(vctx, pool.p, pool.sink)
+	}()
+}
+
+func (pool *vuPool) stop() {
+	pool.mu.Lock()
+	if len(pool.cancels) > 0 {
+		c := pool.cancels[len(pool.cancels)-1]
+		pool.cancels = pool.cancels[:len(pool.cancels)-1]
+		pool.mu.Unlock()
+		c()
+		return
+	}
+	pool.mu.Unlock()
+}
+
+func (pool *vuPool) count() int {
+	pool.mu.Lock()
+	defer pool.mu.Unlock()
+	return len(pool.cancels)
+}
+
+func (pool *vuPool) adjust(want int) {
+	have := pool.count()
+	for have < want {
+		pool.spawn()
+		have++
+	}
+	for have > want {
+		pool.stop()
+		have--
+	}
+}
+
+func (pool *vuPool) drain() {
+	pool.mu.Lock()
+	for _, c := range pool.cancels {
+		c()
+	}
+	pool.cancels = nil
+	pool.mu.Unlock()
+}
+
 func runRampingVUs(ctx context.Context, p Plan, sink metrics.Sink) {
 	total := time.Duration(0)
 	for _, s := range p.Cfg.Stages {
@@ -94,51 +154,14 @@ func runRampingVUs(ctx context.Context, p Plan, sink metrics.Sink) {
 	runCtx, cancel := context.WithTimeout(ctx, total+graceful)
 	defer cancel()
 
-	var (
-		mu      sync.Mutex
-		cancels []context.CancelFunc
-		wg      sync.WaitGroup
-	)
-	spawn := func() {
-		vctx, vcancel := context.WithCancel(runCtx)
-		mu.Lock()
-		cancels = append(cancels, vcancel)
-		mu.Unlock()
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			loopVU(vctx, p, sink)
-		}()
-	}
-	stop := func() {
-		mu.Lock()
-		if len(cancels) > 0 {
-			c := cancels[len(cancels)-1]
-			cancels = cancels[:len(cancels)-1]
-			mu.Unlock()
-			c()
-			return
-		}
-		mu.Unlock()
-	}
+	pool := &vuPool{runCtx: runCtx, p: p, sink: sink}
 
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 	start := time.Now()
 	for {
 		elapsed := time.Since(start)
-		want := vuCountAt(p.Cfg, elapsed)
-		mu.Lock()
-		have := len(cancels)
-		mu.Unlock()
-		for have < want {
-			spawn()
-			have++
-		}
-		for have > want {
-			stop()
-			have--
-		}
+		pool.adjust(vuCountAt(p.Cfg, elapsed))
 		if elapsed >= total {
 			break
 		}
@@ -149,14 +172,9 @@ func runRampingVUs(ctx context.Context, p Plan, sink metrics.Sink) {
 		}
 	}
 drain:
-	mu.Lock()
-	for _, c := range cancels {
-		c()
-	}
-	cancels = nil
-	mu.Unlock()
+	pool.drain()
 	cancel()
-	wg.Wait()
+	pool.wg.Wait()
 }
 
 func runConstantRPS(ctx context.Context, p Plan, sink metrics.Sink) {

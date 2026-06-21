@@ -83,45 +83,61 @@ func ExtractAll(specs []Spec, in Input) (map[string]string, []Error) {
 func resolve(spec Spec, in Input) (string, bool, error) {
 	switch spec.Source {
 	case SourceJSON:
-		value, err := JSONPath(in.Body, spec.Path)
-		if err != nil {
-			if _, ok := err.(*notFoundError); ok {
-				return "", false, nil
-			}
-			return "", false, &Error{Var: spec.Var, Source: spec.Source, Path: spec.Path, Reason: err.Error()}
-		}
-		return value, true, nil
+		return resolveJSON(spec, in)
 	case SourceRegex:
-		re, err := regexp.Compile(spec.Path)
-		if err != nil {
-			return "", false, &Error{Var: spec.Var, Source: spec.Source, Path: spec.Path, Reason: err.Error()}
-		}
-		m := re.FindStringSubmatch(string(in.Body))
-		if m == nil {
-			return "", false, nil
-		}
-		if len(m) > 1 {
-			return m[1], true, nil
-		}
-		return m[0], true, nil
+		return resolveRegex(spec, in)
 	case SourceHeader:
-		if in.Headers == nil {
-			return "", false, nil
-		}
-		v := in.Headers.Get(spec.Path)
-		return v, v != "", nil
+		return resolveHeader(spec, in)
 	case SourceCookie:
-		for _, c := range in.Cookies {
-			if c != nil && c.Name == spec.Path {
-				return c.Value, c.Value != "", nil
-			}
-		}
-		return "", false, nil
+		return resolveCookie(spec, in)
 	case SourceStatus:
 		return strconv.Itoa(in.Status), true, nil
 	default:
 		return "", false, &Error{Var: spec.Var, Source: spec.Source, Path: spec.Path, Reason: "unknown source"}
 	}
+}
+
+func resolveJSON(spec Spec, in Input) (string, bool, error) {
+	value, err := JSONPath(in.Body, spec.Path)
+	if err != nil {
+		if _, ok := err.(*notFoundError); ok {
+			return "", false, nil
+		}
+		return "", false, &Error{Var: spec.Var, Source: spec.Source, Path: spec.Path, Reason: err.Error()}
+	}
+	return value, true, nil
+}
+
+func resolveRegex(spec Spec, in Input) (string, bool, error) {
+	re, err := regexp.Compile(spec.Path)
+	if err != nil {
+		return "", false, &Error{Var: spec.Var, Source: spec.Source, Path: spec.Path, Reason: err.Error()}
+	}
+	m := re.FindStringSubmatch(string(in.Body))
+	if m == nil {
+		return "", false, nil
+	}
+	if len(m) > 1 {
+		return m[1], true, nil
+	}
+	return m[0], true, nil
+}
+
+func resolveHeader(spec Spec, in Input) (string, bool, error) {
+	if in.Headers == nil {
+		return "", false, nil
+	}
+	v := in.Headers.Get(spec.Path)
+	return v, v != "", nil
+}
+
+func resolveCookie(spec Spec, in Input) (string, bool, error) {
+	for _, c := range in.Cookies {
+		if c != nil && c.Name == spec.Path {
+			return c.Value, c.Value != "", nil
+		}
+	}
+	return "", false, nil
 }
 
 type notFoundError struct {
@@ -139,30 +155,55 @@ func JSONPath(body []byte, path string) (string, error) {
 	}
 	cur := root
 	for _, seg := range splitPath(path) {
-		key, idx, hasIdx := parseSegment(seg)
-		if key != "" {
-			m, ok := cur.(map[string]interface{})
-			if !ok {
-				return "", &notFoundError{path: path}
-			}
-			next, ok := m[key]
-			if !ok {
-				return "", &notFoundError{path: path}
-			}
-			cur = next
+		next, err := walkSegment(cur, seg, path)
+		if err != nil {
+			return "", err
 		}
-		if hasIdx {
-			arr, ok := cur.([]interface{})
-			if !ok {
-				return "", &notFoundError{path: path}
-			}
-			if idx < 0 || idx >= len(arr) {
-				return "", &notFoundError{path: path}
-			}
-			cur = arr[idx]
-		}
+		cur = next
 	}
 	return render(cur), nil
+}
+
+func walkSegment(cur interface{}, seg, path string) (interface{}, error) {
+	key, idx, hasIdx := parseSegment(seg)
+	if key != "" {
+		next, err := walkKey(cur, key, path)
+		if err != nil {
+			return nil, err
+		}
+		cur = next
+	}
+	if hasIdx {
+		next, err := walkIndex(cur, idx, path)
+		if err != nil {
+			return nil, err
+		}
+		cur = next
+	}
+	return cur, nil
+}
+
+func walkKey(cur interface{}, key, path string) (interface{}, error) {
+	m, ok := cur.(map[string]interface{})
+	if !ok {
+		return nil, &notFoundError{path: path}
+	}
+	next, ok := m[key]
+	if !ok {
+		return nil, &notFoundError{path: path}
+	}
+	return next, nil
+}
+
+func walkIndex(cur interface{}, idx int, path string) (interface{}, error) {
+	arr, ok := cur.([]interface{})
+	if !ok {
+		return nil, &notFoundError{path: path}
+	}
+	if idx < 0 || idx >= len(arr) {
+		return nil, &notFoundError{path: path}
+	}
+	return arr[idx], nil
 }
 
 func splitPath(path string) []string {

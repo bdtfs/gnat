@@ -357,9 +357,9 @@ func TestEvaluate_MixedPassFail(t *testing.T) {
 	elapsed := 10 * time.Second
 
 	th := Thresholds{
-		P95LatencyMs: fp(200), // passes (actual ~90ms)
+		P95LatencyMs: fp(200),  // passes (actual ~90ms)
 		ErrorRate:    fp(0.05), // fails (actual 0.10)
-		MinRPS:       fp(1),   // passes (actual 1.0)
+		MinRPS:       fp(1),    // passes (actual 1.0)
 	}
 
 	result := Evaluate(th, stats, elapsed)

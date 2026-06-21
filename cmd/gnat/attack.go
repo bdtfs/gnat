@@ -19,6 +19,35 @@ import (
 	"log/slog"
 )
 
+const (
+	statusFailed = "failed"
+	resultPass   = "PASS"
+	resultFail   = "FAIL"
+)
+
+func passFailMark(passed bool) string {
+	if passed {
+		return resultPass
+	}
+	return resultFail
+}
+
+func printStatusCodes(s *dto.Stats, prefix string) {
+	if len(s.StatusCodes) == 0 {
+		return
+	}
+	codes := make([]int, 0, len(s.StatusCodes))
+	for c := range s.StatusCodes {
+		codes = append(codes, c)
+	}
+	sort.Ints(codes)
+	fmt.Print(prefix)
+	for _, c := range codes {
+		fmt.Printf(" %d=%d", c, s.StatusCodes[c])
+	}
+	fmt.Println()
+}
+
 type attackFlags struct {
 	config string
 	out    string
@@ -172,7 +201,7 @@ func (e *attackExecutor) runScenario(ctx context.Context, sc cli.Scenario, thres
 
 	dur, err := sc.ParseDuration()
 	if err != nil {
-		sr.Status = "failed"
+		sr.Status = statusFailed
 		sr.Error = err.Error()
 		return sr
 	}
@@ -184,7 +213,7 @@ func (e *attackExecutor) runScenario(ctx context.Context, sc cli.Scenario, thres
 
 	setup := models.NewSetup(sc.Name, "", sc.Method, sc.URL, body, sc.Headers, sc.RPS, dur)
 	if err := e.repo.CreateSetup(setup); err != nil {
-		sr.Status = "failed"
+		sr.Status = statusFailed
 		sr.Error = err.Error()
 		return sr
 	}
@@ -192,7 +221,7 @@ func (e *attackExecutor) runScenario(ctx context.Context, sc cli.Scenario, thres
 	done := make(chan models.RunStatus, 1)
 	run, err := e.runner.StartRun(ctx, setup.ID)
 	if err != nil {
-		sr.Status = "failed"
+		sr.Status = statusFailed
 		sr.Error = err.Error()
 		return sr
 	}
@@ -243,34 +272,15 @@ func printScenarioReport(sr ScenarioReport) {
 		fmt.Printf("  throughput: %.1f req/s, %d bytes read\n", s.RPS, s.BytesRead)
 		fmt.Printf("  latency ms: avg=%.1f p50=%.1f p90=%.1f p95=%.1f p99=%.1f max=%.1f\n",
 			s.AvgLatency, s.P50Latency, s.P90Latency, s.P95Latency, s.P99Latency, s.MaxLatency)
-		if len(s.StatusCodes) > 0 {
-			codes := make([]int, 0, len(s.StatusCodes))
-			for c := range s.StatusCodes {
-				codes = append(codes, c)
-			}
-			sort.Ints(codes)
-			fmt.Printf("  status codes:")
-			for _, c := range codes {
-				fmt.Printf(" %d=%d", c, s.StatusCodes[c])
-			}
-			fmt.Println()
-		}
+		printStatusCodes(s, "  status codes:")
 	}
 	if len(sr.Thresholds) > 0 {
 		fmt.Printf("  thresholds:\n")
 		for _, t := range sr.Thresholds {
-			mark := "PASS"
-			if !t.Passed {
-				mark = "FAIL"
-			}
-			fmt.Printf("    [%s] %s target=%.2f actual=%.2f\n", mark, t.Name, t.Target, t.Actual)
+			fmt.Printf("    [%s] %s target=%.2f actual=%.2f\n", passFailMark(t.Passed), t.Name, t.Target, t.Actual)
 		}
 	}
-	result := "PASS"
-	if !sr.Passed {
-		result = "FAIL"
-	}
-	fmt.Printf("  => %s\n", result)
+	fmt.Printf("  => %s\n", passFailMark(sr.Passed))
 }
 
 func writeReport(path string, report AttackReport) error {

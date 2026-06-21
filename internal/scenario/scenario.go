@@ -198,53 +198,73 @@ func validateStateful(s *Scenario, label string) error {
 		return fmt.Errorf("%s: executor is required", label)
 	}
 	for i := range s.Steps {
-		st := &s.Steps[i]
-		if st.Name == "" {
-			return fmt.Errorf("%s: step[%d] name is required", label, i)
-		}
-		if st.Compute == nil {
-			if st.URL == "" {
-				return fmt.Errorf("%s/%s: url is required", label, st.Name)
-			}
-			if st.Method == "" {
-				st.Method = "GET"
-			}
-		} else {
-			if st.Compute.Out == "" {
-				return fmt.Errorf("%s/%s: compute.out is required", label, st.Name)
-			}
+		if err := validateStep(&s.Steps[i], i, label); err != nil {
+			return err
 		}
 	}
 	return validateExecutor(s.Executor, label)
 }
 
+func validateStep(st *Step, i int, label string) error {
+	if st.Name == "" {
+		return fmt.Errorf("%s: step[%d] name is required", label, i)
+	}
+	if st.Compute == nil {
+		if st.URL == "" {
+			return fmt.Errorf("%s/%s: url is required", label, st.Name)
+		}
+		if st.Method == "" {
+			st.Method = "GET"
+		}
+		return nil
+	}
+	if st.Compute.Out == "" {
+		return fmt.Errorf("%s/%s: compute.out is required", label, st.Name)
+	}
+	return nil
+}
+
 func validateExecutor(e *Executor, label string) error {
 	switch e.Type {
 	case "constant-rps":
-		if e.RPS <= 0 {
-			return fmt.Errorf("%s: executor rps must be positive", label)
-		}
-		if _, err := time.ParseDuration(e.Duration); err != nil {
-			return fmt.Errorf("%s: invalid executor duration: %w", label, err)
-		}
+		return validateConstantRPS(e, label)
 	case "constant-vus":
-		if e.VUs <= 0 {
-			return fmt.Errorf("%s: executor vus must be positive", label)
-		}
-		if _, err := time.ParseDuration(e.Duration); err != nil {
-			return fmt.Errorf("%s: invalid executor duration: %w", label, err)
-		}
+		return validateConstantVUs(e, label)
 	case "ramping-vus":
-		if len(e.Stages) == 0 {
-			return fmt.Errorf("%s: ramping-vus requires stages", label)
-		}
-		for j, st := range e.Stages {
-			if _, err := time.ParseDuration(st.Duration); err != nil {
-				return fmt.Errorf("%s: stage[%d] invalid duration: %w", label, j, err)
-			}
-		}
+		return validateRampingVUs(e, label)
 	default:
 		return fmt.Errorf("%s: unknown executor type %q", label, e.Type)
+	}
+}
+
+func validateConstantRPS(e *Executor, label string) error {
+	if e.RPS <= 0 {
+		return fmt.Errorf("%s: executor rps must be positive", label)
+	}
+	if _, err := time.ParseDuration(e.Duration); err != nil {
+		return fmt.Errorf("%s: invalid executor duration: %w", label, err)
+	}
+	return nil
+}
+
+func validateConstantVUs(e *Executor, label string) error {
+	if e.VUs <= 0 {
+		return fmt.Errorf("%s: executor vus must be positive", label)
+	}
+	if _, err := time.ParseDuration(e.Duration); err != nil {
+		return fmt.Errorf("%s: invalid executor duration: %w", label, err)
+	}
+	return nil
+}
+
+func validateRampingVUs(e *Executor, label string) error {
+	if len(e.Stages) == 0 {
+		return fmt.Errorf("%s: ramping-vus requires stages", label)
+	}
+	for j, st := range e.Stages {
+		if _, err := time.ParseDuration(st.Duration); err != nil {
+			return fmt.Errorf("%s: stage[%d] invalid duration: %w", label, j, err)
+		}
 	}
 	return nil
 }

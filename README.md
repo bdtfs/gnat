@@ -1,6 +1,6 @@
 # gnat
 
-[![Go](https://img.shields.io/badge/Go-1.25.3-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](/)
 [![Lint](https://img.shields.io/badge/lint-golangci--lint-purple)](https://golangci-lint.run/)
@@ -19,7 +19,7 @@ A fast, scenario-oriented load testing service written in Go. Define test setups
 
 ### Prerequisites
 
-- Go 1.25.3 or later
+- Go 1.26 or later
 - Git
 
 ### Installation

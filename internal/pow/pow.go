@@ -71,17 +71,8 @@ func Solve(ctx context.Context, c Challenge) (Solution, error) {
 	}
 
 	for n := uint64(0); ; n++ {
-		if n >= maxIters {
-			return Solution{}, ErrNotFound
-		}
-
-		if n%pollInterval == 0 {
-			if err := ctx.Err(); err != nil {
-				return Solution{}, err
-			}
-			if !time.Now().Before(deadline) {
-				return Solution{}, context.DeadlineExceeded
-			}
+		if err := budgetExceeded(ctx, n, maxIters, deadline); err != nil {
+			return Solution{}, err
 		}
 
 		nonce := strconv.FormatUint(n, 10)
@@ -95,6 +86,26 @@ func Solve(ctx context.Context, c Challenge) (Solution, error) {
 			}, nil
 		}
 	}
+}
+
+func budgetExceeded(ctx context.Context, n, maxIters uint64, deadline time.Time) error {
+	if n >= maxIters {
+		return ErrNotFound
+	}
+
+	if n%pollInterval != 0 {
+		return nil
+	}
+
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	if !time.Now().Before(deadline) {
+		return context.DeadlineExceeded
+	}
+
+	return nil
 }
 
 func Verify(prefix, separator, nonce string, difficulty int) bool {

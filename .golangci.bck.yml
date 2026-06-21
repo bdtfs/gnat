@@ -1,0 +1,45 @@
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  enable:
+    # Security
+    - gosec
+    # Correctness
+    - errcheck
+    - staticcheck
+    - govet
+    # Style
+    - gofmt
+    - goimports
+    - revive
+    # Complexity
+    - gocyclo
+    - gocognit
+    # Quality
+    - unused
+    - ineffassign
+    - misspell
+    - goconst
+
+linters-settings:
+  gocyclo:
+    min-complexity: 10
+  gocognit:
+    min-complexity: 15
+  revive:
+    severity: warning
+  gosec:
+    severity: high
+    confidence: high
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
+        - dupl
+        - gocyclo
+        - gocognit
+        - goconst

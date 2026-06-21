@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"sort"
 	"time"
 
 	"github.com/bdtfs/gnat/internal/cli"
@@ -179,49 +178,29 @@ func printRunReport(r RunReport) {
 	for _, sc := range r.Scenarios {
 		fmt.Printf("\n══ scenario: %s ══\n", sc.Name)
 		for _, st := range sc.Steps {
-			s := st.Stats
-			result := "PASS"
-			if !st.Passed {
-				result = "FAIL"
-			}
-			fmt.Printf("  [%s] %s\n", result, st.Name)
-			if s != nil {
-				fmt.Printf("      reqs=%d ok=%d fail=%d  rps=%.1f  ms: p50=%.1f p95=%.1f p99=%.1f max=%.1f  bytes=%d\n",
-					s.Total, s.Success, s.Failed, s.RPS, s.P50Latency, s.P95Latency, s.P99Latency, s.MaxLatency, s.BytesRead)
-				if len(s.StatusCodes) > 0 {
-					codes := make([]int, 0, len(s.StatusCodes))
-					for c := range s.StatusCodes {
-						codes = append(codes, c)
-					}
-					sort.Ints(codes)
-					fmt.Printf("      status:")
-					for _, c := range codes {
-						fmt.Printf(" %d=%d", c, s.StatusCodes[c])
-					}
-					fmt.Println()
-				}
-			}
-			if st.Checks.Failed > 0 && len(st.Checks.ByReason) > 0 {
-				fmt.Printf("      check failures:")
-				for reason, n := range st.Checks.ByReason {
-					fmt.Printf(" %s=%d", reason, n)
-				}
-				fmt.Println()
-			}
-			for _, t := range st.Thresholds {
-				mark := "PASS"
-				if !t.Passed {
-					mark = "FAIL"
-				}
-				fmt.Printf("      [%s] threshold %s target=%.2f actual=%.2f\n", mark, t.Name, t.Target, t.Actual)
-			}
+			printStepReport(st)
 		}
 	}
-	overall := "PASS"
-	if !r.Passed {
-		overall = "FAIL"
+	fmt.Printf("\n=> %s\n", passFailMark(r.Passed))
+}
+
+func printStepReport(st StepReport) {
+	fmt.Printf("  [%s] %s\n", passFailMark(st.Passed), st.Name)
+	if s := st.Stats; s != nil {
+		fmt.Printf("      reqs=%d ok=%d fail=%d  rps=%.1f  ms: p50=%.1f p95=%.1f p99=%.1f max=%.1f  bytes=%d\n",
+			s.Total, s.Success, s.Failed, s.RPS, s.P50Latency, s.P95Latency, s.P99Latency, s.MaxLatency, s.BytesRead)
+		printStatusCodes(s, "      status:")
 	}
-	fmt.Printf("\n=> %s\n", overall)
+	if st.Checks.Failed > 0 && len(st.Checks.ByReason) > 0 {
+		fmt.Printf("      check failures:")
+		for reason, n := range st.Checks.ByReason {
+			fmt.Printf(" %s=%d", reason, n)
+		}
+		fmt.Println()
+	}
+	for _, t := range st.Thresholds {
+		fmt.Printf("      [%s] threshold %s target=%.2f actual=%.2f\n", passFailMark(t.Passed), t.Name, t.Target, t.Actual)
+	}
 }
 
 func writeRunJSON(path string, r RunReport) error {

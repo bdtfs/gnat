@@ -24,7 +24,7 @@ type Thresholds struct {
 
 // ThresholdResult records the outcome of a single threshold check.
 type ThresholdResult struct {
-	Name   string  // e.g. "p95_latency_ms"
+	Name   string // e.g. "p95_latency_ms"
 	Target float64
 	Actual float64
 	Passed bool
@@ -38,15 +38,15 @@ type EvaluationResult struct {
 
 // computedStats holds values derived from models.Stats for threshold evaluation.
 type computedStats struct {
-	p50LatencyMs   float64
-	p90LatencyMs   float64
-	p95LatencyMs   float64
-	p99LatencyMs   float64
-	avgLatencyMs   float64
-	maxLatencyMs   float64
-	errorRate      float64
-	rps            float64
-	successRate    float64
+	p50LatencyMs float64
+	p90LatencyMs float64
+	p95LatencyMs float64
+	p99LatencyMs float64
+	avgLatencyMs float64
+	maxLatencyMs float64
+	errorRate    float64
+	rps          float64
+	successRate  float64
 }
 
 // deriveStats computes percentiles, averages, and rates from raw models.Stats.
@@ -110,114 +110,58 @@ func percentile(sorted []time.Duration, p float64) float64 {
 func Evaluate(thresholds Thresholds, stats *models.Stats, elapsed time.Duration) EvaluationResult {
 	cs := deriveStats(stats, elapsed)
 
-	var results []ThresholdResult
+	var b thresholdBuilder
 
-	// For latency thresholds, "pass" means actual <= target.
-	if thresholds.P50LatencyMs != nil {
-		target := *thresholds.P50LatencyMs
-		results = append(results, ThresholdResult{
-			Name:   "p50_latency_ms",
-			Target: target,
-			Actual: cs.p50LatencyMs,
-			Passed: cs.p50LatencyMs <= target,
-		})
-	}
-
-	if thresholds.P90LatencyMs != nil {
-		target := *thresholds.P90LatencyMs
-		results = append(results, ThresholdResult{
-			Name:   "p90_latency_ms",
-			Target: target,
-			Actual: cs.p90LatencyMs,
-			Passed: cs.p90LatencyMs <= target,
-		})
-	}
-
-	if thresholds.P95LatencyMs != nil {
-		target := *thresholds.P95LatencyMs
-		results = append(results, ThresholdResult{
-			Name:   "p95_latency_ms",
-			Target: target,
-			Actual: cs.p95LatencyMs,
-			Passed: cs.p95LatencyMs <= target,
-		})
-	}
-
-	if thresholds.P99LatencyMs != nil {
-		target := *thresholds.P99LatencyMs
-		results = append(results, ThresholdResult{
-			Name:   "p99_latency_ms",
-			Target: target,
-			Actual: cs.p99LatencyMs,
-			Passed: cs.p99LatencyMs <= target,
-		})
-	}
-
-	if thresholds.AvgLatencyMs != nil {
-		target := *thresholds.AvgLatencyMs
-		results = append(results, ThresholdResult{
-			Name:   "avg_latency_ms",
-			Target: target,
-			Actual: cs.avgLatencyMs,
-			Passed: cs.avgLatencyMs <= target,
-		})
-	}
-
-	if thresholds.MaxLatencyMs != nil {
-		target := *thresholds.MaxLatencyMs
-		results = append(results, ThresholdResult{
-			Name:   "max_latency_ms",
-			Target: target,
-			Actual: cs.maxLatencyMs,
-			Passed: cs.maxLatencyMs <= target,
-		})
-	}
-
-	// For error rate, "pass" means actual <= target.
-	if thresholds.ErrorRate != nil {
-		target := *thresholds.ErrorRate
-		results = append(results, ThresholdResult{
-			Name:   "error_rate",
-			Target: target,
-			Actual: cs.errorRate,
-			Passed: cs.errorRate <= target,
-		})
-	}
-
-	// For MinRPS, "pass" means actual >= target.
-	if thresholds.MinRPS != nil {
-		target := *thresholds.MinRPS
-		results = append(results, ThresholdResult{
-			Name:   "min_rps",
-			Target: target,
-			Actual: cs.rps,
-			Passed: cs.rps >= target,
-		})
-	}
-
-	// For MinSuccessRate, "pass" means actual >= target.
-	if thresholds.MinSuccessRate != nil {
-		target := *thresholds.MinSuccessRate
-		results = append(results, ThresholdResult{
-			Name:   "min_success_rate",
-			Target: target,
-			Actual: cs.successRate,
-			Passed: cs.successRate >= target,
-		})
-	}
-
-	allPassed := true
-	for _, r := range results {
-		if !r.Passed {
-			allPassed = false
-			break
-		}
-	}
+	b.atMost("p50_latency_ms", thresholds.P50LatencyMs, cs.p50LatencyMs)
+	b.atMost("p90_latency_ms", thresholds.P90LatencyMs, cs.p90LatencyMs)
+	b.atMost("p95_latency_ms", thresholds.P95LatencyMs, cs.p95LatencyMs)
+	b.atMost("p99_latency_ms", thresholds.P99LatencyMs, cs.p99LatencyMs)
+	b.atMost("avg_latency_ms", thresholds.AvgLatencyMs, cs.avgLatencyMs)
+	b.atMost("max_latency_ms", thresholds.MaxLatencyMs, cs.maxLatencyMs)
+	b.atMost("error_rate", thresholds.ErrorRate, cs.errorRate)
+	b.atLeast("min_rps", thresholds.MinRPS, cs.rps)
+	b.atLeast("min_success_rate", thresholds.MinSuccessRate, cs.successRate)
 
 	return EvaluationResult{
-		Passed:  allPassed,
-		Results: results,
+		Passed:  b.allPassed(),
+		Results: b.results,
 	}
+}
+
+type thresholdBuilder struct {
+	results []ThresholdResult
+}
+
+func (b *thresholdBuilder) add(name string, target, actual float64, passed bool) {
+	b.results = append(b.results, ThresholdResult{
+		Name:   name,
+		Target: target,
+		Actual: actual,
+		Passed: passed,
+	})
+}
+
+func (b *thresholdBuilder) atMost(name string, target *float64, actual float64) {
+	if target == nil {
+		return
+	}
+	b.add(name, *target, actual, actual <= *target)
+}
+
+func (b *thresholdBuilder) atLeast(name string, target *float64, actual float64) {
+	if target == nil {
+		return
+	}
+	b.add(name, *target, actual, actual >= *target)
+}
+
+func (b *thresholdBuilder) allPassed() bool {
+	for _, r := range b.results {
+		if !r.Passed {
+			return false
+		}
+	}
+	return true
 }
 
 // ExitCode maps an EvaluationResult to a process exit code.

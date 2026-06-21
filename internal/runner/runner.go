@@ -17,13 +17,13 @@ import (
 type RunCompleteFunc func(runID string, status models.RunStatus)
 
 type Runner struct {
-	repo           storage.Repository
-	logger         *slog.Logger
-	collector      *Collector
-	activeRuns     map[string]context.CancelFunc
-	activeRunsMu   sync.RWMutex
-	onRunComplete  []RunCompleteFunc
-	onCompleteMu   sync.RWMutex
+	repo          storage.Repository
+	logger        *slog.Logger
+	collector     *Collector
+	activeRuns    map[string]context.CancelFunc
+	activeRunsMu  sync.RWMutex
+	onRunComplete []RunCompleteFunc
+	onCompleteMu  sync.RWMutex
 }
 
 func New(repo storage.Repository, logger *slog.Logger, collector *Collector) *Runner {

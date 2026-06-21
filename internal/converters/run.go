@@ -56,20 +56,7 @@ func StatsToDTO(m *models.Stats, startedAt, endedAt time.Time) *dto.Stats {
 
 	sort.Slice(lat, func(i, j int) bool { return lat[i] < lat[j] })
 
-	var lowest, highest float64
-	if len(lat) > 0 {
-		lowest = float64(lat[0].Milliseconds())
-		highest = float64(lat[len(lat)-1].Milliseconds())
-	}
-
-	var average float64
-	if len(lat) > 0 {
-		var total time.Duration
-		for _, v := range lat {
-			total += v
-		}
-		average = float64(total.Milliseconds()) / float64(len(lat))
-	}
+	lowest, highest, average := aggregateLatencies(lat)
 
 	elapsed := endedAt.Sub(startedAt).Seconds()
 	var rps float64
@@ -83,23 +70,7 @@ func StatsToDTO(m *models.Stats, startedAt, endedAt time.Time) *dto.Stats {
 	}
 
 	m.TimeSeriesMu.RLock()
-	var timeSeries []dto.TimeSeriesPoint
-	if len(m.TimeSeries) > 0 {
-		timeSeries = make([]dto.TimeSeriesPoint, len(m.TimeSeries))
-		for i, p := range m.TimeSeries {
-			timeSeries[i] = dto.TimeSeriesPoint{
-				TimestampMs:  p.TimestampMs,
-				P50Latency:   p.P50Latency,
-				P90Latency:   p.P90Latency,
-				P95Latency:   p.P95Latency,
-				P99Latency:   p.P99Latency,
-				RPS:          p.RPS,
-				ErrorRate:    p.ErrorRate,
-				SuccessCount: p.SuccessCount,
-				FailedCount:  p.FailedCount,
-			}
-		}
-	}
+	timeSeries := copyTimeSeries(m.TimeSeries)
 	m.TimeSeriesMu.RUnlock()
 
 	return &dto.Stats{
@@ -120,6 +91,46 @@ func StatsToDTO(m *models.Stats, startedAt, endedAt time.Time) *dto.Stats {
 		Errors:      errorsCopy,
 		TimeSeries:  timeSeries,
 	}
+}
+
+func aggregateLatencies(sorted []time.Duration) (lowest, highest, average float64) {
+	if len(sorted) == 0 {
+		return 0, 0, 0
+	}
+
+	lowest = float64(sorted[0].Milliseconds())
+	highest = float64(sorted[len(sorted)-1].Milliseconds())
+
+	var total time.Duration
+	for _, v := range sorted {
+		total += v
+	}
+	average = float64(total.Milliseconds()) / float64(len(sorted))
+
+	return lowest, highest, average
+}
+
+func copyTimeSeries(points []models.TimeSeriesPoint) []dto.TimeSeriesPoint {
+	if len(points) == 0 {
+		return nil
+	}
+
+	out := make([]dto.TimeSeriesPoint, len(points))
+	for i, p := range points {
+		out[i] = dto.TimeSeriesPoint{
+			TimestampMs:  p.TimestampMs,
+			P50Latency:   p.P50Latency,
+			P90Latency:   p.P90Latency,
+			P95Latency:   p.P95Latency,
+			P99Latency:   p.P99Latency,
+			RPS:          p.RPS,
+			ErrorRate:    p.ErrorRate,
+			SuccessCount: p.SuccessCount,
+			FailedCount:  p.FailedCount,
+		}
+	}
+
+	return out
 }
 
 func percentile(sorted []time.Duration, p float64) float64 {

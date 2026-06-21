@@ -921,7 +921,7 @@ scenarios:
 	if cfg.Name != "" {
 		t.Errorf("expected empty name, got %q", cfg.Name)
 	}
-	if cfg.Variables != nil && len(cfg.Variables) != 0 {
+	if len(cfg.Variables) != 0 {
 		t.Errorf("expected nil/empty variables, got %v", cfg.Variables)
 	}
 	if cfg.Thresholds != nil {
